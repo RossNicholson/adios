@@ -1,0 +1,98 @@
+{
+  "images" : [
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_ef787c77-f027-4eee-af65-c068c82fcac3.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ],
+      "filename" : "rosconic_ios_app_icon_of_a_shield_ef787c77-f027-4eee-af65-c068c82fcac3 1.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ],
+      "filename" : "rosconic_ios_app_icon_of_a_shield_ef787c77-f027-4eee-af65-c068c82fcac3 2.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789 9.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "16x16"
+    },
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789 8.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "16x16"
+    },
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789 7.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "32x32"
+    },
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789 6.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "32x32"
+    },
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789 5.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "128x128"
+    },
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789 4.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "128x128"
+    },
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789 3.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "256x256"
+    },
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789 2.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "256x256"
+    },
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789 1.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "512x512"
+    },
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "512x512"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

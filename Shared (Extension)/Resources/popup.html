@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="popup.css">
+    <script type="module" src="popup.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="images/icon-32.png" alt="Adios Logo" class="logo">
+            <h1>Adios</h1>
+        </div>
+        
+        <div class="privacy-notice">
+            <p>Adios needs permission to read webpage content to identify and block ads. No personal data is collected or shared.</p>
+        </div>
+        
+        <div class="toggle-container">
+            <label class="switch">
+                <input type="checkbox" id="enableToggle" checked>
+                <span class="slider round"></span>
+            </label>
+            <span class="toggle-label">Ad Blocking</span>
+        </div>
+
+        <div class="blocking-categories">
+            <h3>Blocking Categories</h3>
+            <div class="category-item">
+                <label class="switch-small">
+                    <input type="checkbox" id="blockAds" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span>Ads</span>
+            </div>
+            <div class="category-item">
+                <label class="switch-small">
+                    <input type="checkbox" id="blockTrackers" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span>Trackers</span>
+            </div>
+            <div class="category-item">
+                <label class="switch-small">
+                    <input type="checkbox" id="blockSocial" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span>Social Media</span>
+            </div>
+            <div class="category-item">
+                <label class="switch-small">
+                    <input type="checkbox" id="blockMalware" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span>Malware</span>
+            </div>
+        </div>
+
+        <div class="privacy-features">
+            <h3>Privacy Features</h3>
+            <div class="category-item">
+                <label class="switch-small">
+                    <input type="checkbox" id="cookieConsent" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span>Auto-dismiss Cookie Consent</span>
+            </div>
+            <div class="category-item">
+                <label class="switch-small">
+                    <input type="checkbox" id="antiFingerprint" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span>Anti-Fingerprinting</span>
+            </div>
+        </div>
+
+        <div class="stats-container">
+            <div class="stats-header">
+                <h3>Statistics</h3>
+                <button id="resetStats" class="reset-stats-btn" title="Reset all statistics">↻ Reset</button>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-number" id="adsBlocked">0</span>
+                    <span class="stat-label">Ads Blocked</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number" id="dataSaved">0 KB</span>
+                    <span class="stat-label">Data Saved</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number" id="trackersBlocked">0</span>
+                    <span class="stat-label">Trackers</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="performance-metrics">
+            <h3>Performance Impact</h3>
+            <div class="metric-grid">
+                <div class="metric-item">
+                    <span class="metric-label">Page Load Speed</span>
+                    <span class="metric-value" id="loadSpeed">+0%</span>
+                    <span class="metric-desc">Faster</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Battery Saved</span>
+                    <span class="metric-value" id="batterySaved">0%</span>
+                    <span class="metric-desc">Estimated</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="analytics-charts">
+            <div class="charts-header">
+                <h3>Analytics</h3>
+                <button id="toggleCharts" class="toggle-button-small">Show Charts</button>
+            </div>
+            <div class="charts-container" id="chartsContainer" style="display: none;">
+                <div class="chart-wrapper">
+                    <h4>Blocking Trends (7 Days)</h4>
+                    <canvas id="trendChart" width="360" height="120"></canvas>
+                </div>
+                <div class="chart-wrapper">
+                    <h4>Category Distribution</h4>
+                    <canvas id="categoryChart" width="360" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="time-stats">
+            <div class="time-stat-tabs">
+                <button class="time-tab active" data-period="today">Today</button>
+                <button class="time-tab" data-period="week">Week</button>
+                <button class="time-tab" data-period="month">Month</button>
+            </div>
+            <div class="time-stat-content">
+                <div class="time-stat-item">
+                    <span class="time-stat-label">Blocked Today:</span>
+                    <span class="time-stat-value" id="todayBlocked">0</span>
+                </div>
+                <div class="time-stat-item">
+                    <span class="time-stat-label">Data Saved:</span>
+                    <span class="time-stat-value" id="todayDataSaved">0 KB</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="current-site">
+            <h2>Current Site</h2>
+            <div class="site-stats">
+                <span id="currentDomain">-</span>
+                <span id="siteBlockCount">0 ads blocked</span>
+                <button id="toggleException" class="exception-button">
+                    Allow Ads on This Site
+                </button>
+            </div>
+        </div>
+
+        <div class="exceptions-list">
+            <div class="exceptions-header">
+                <h2>Exceptions</h2>
+                <button id="toggleExceptionsList" class="toggle-list-button">
+                    Show All
+                </button>
+            </div>
+            <div class="exceptions-container">
+                <div class="exceptions-summary" id="exceptionsSummary">
+                    <span id="exceptionsCount">0</span> sites in list
+                    <button id="addManualException" class="add-exception-button">+</button>
+                </div>
+                <div class="manual-entry" id="manualEntry" style="display: none;">
+                    <input type="text" id="manualDomain" placeholder="Enter website (e.g., example.com)">
+                    <button id="saveManualEntry">Add</button>
+                </div>
+                <ul id="exceptionsList" class="collapsed">
+                    <!-- Exceptions will be listed here -->
+                </ul>
+                <p class="empty-message" id="emptyExceptions">No exceptions added</p>
+            </div>
+        </div>
+
+        <div class="privacy-dashboard">
+            <div class="dashboard-header">
+                <h3>Privacy Dashboard</h3>
+                <button id="viewFullReport" class="link-button">View Full Report →</button>
+            </div>
+            <div class="dashboard-stats">
+                <div class="dashboard-stat">
+                    <span class="dashboard-label">Privacy Score:</span>
+                    <span class="dashboard-value privacy-score" id="privacyScore">-</span>
+                </div>
+                <div class="dashboard-stat">
+                    <span class="dashboard-label">Top Blocked Domain:</span>
+                    <span class="dashboard-value" id="topDomain">-</span>
+                </div>
+                <div class="dashboard-stat">
+                    <span class="dashboard-label">Category Breakdown:</span>
+                    <div class="category-breakdown" id="categoryBreakdown">
+                        <div class="breakdown-item">Ads: <span id="adsCount">0</span></div>
+                        <div class="breakdown-item">Trackers: <span id="trackersCount">0</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="smart-filters">
+            <h3>Smart Filter Presets</h3>
+            <div class="preset-buttons">
+                <button id="presetStrict" class="preset-btn">🛡️ Strict</button>
+                <button id="presetBalanced" class="preset-btn active">⚖️ Balanced</button>
+                <button id="presetRelaxed" class="preset-btn">🔓 Relaxed</button>
+            </div>
+            <p class="preset-description" id="presetDescription">Balanced mode blocks ads and trackers while allowing essential content.</p>
+        </div>
+
+        <div class="custom-rules">
+            <div class="custom-rules-header">
+                <h3>Custom Rules</h3>
+                <div class="rule-actions-header">
+                    <button id="addCustomRule" class="add-button">+ Add Rule</button>
+                    <button id="showTemplates" class="template-button">📚 Templates</button>
+                </div>
+            </div>
+            <div class="custom-rules-list" id="customRulesList">
+                <p class="empty-message">No custom rules. Click + to add one.</p>
+            </div>
+        </div>
+
+        <div class="rule-templates" id="ruleTemplates" style="display: none;">
+            <div class="templates-header">
+                <h3>Rule Templates</h3>
+                <button id="closeTemplates" class="template-close">✕</button>
+            </div>
+            <div class="templates-grid" id="templatesGrid">
+                <!-- Templates will be inserted here -->
+            </div>
+        </div>
+
+        <div class="site-specific-rules">
+            <div class="site-rules-header">
+                <h3>Site-Specific Rules</h3>
+                <button id="addSiteRule" class="add-button">+ Add Site Rule</button>
+            </div>
+            <div class="site-rules-list" id="siteRulesList">
+                <p class="empty-message">No site-specific rules. Create rules that apply only to specific domains.</p>
+            </div>
+        </div>
+
+        <div class="scheduled-blocking">
+            <div class="schedule-header">
+                <h3>Scheduled Blocking</h3>
+                <label class="switch-small">
+                    <input type="checkbox" id="scheduleEnabled">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+            <div class="schedule-content" id="scheduleContent" style="display: none;">
+                <div class="schedule-item">
+                    <label>Time Range:</label>
+                    <div class="time-inputs">
+                        <input type="time" id="scheduleStart" value="09:00">
+                        <span>to</span>
+                        <input type="time" id="scheduleEnd" value="17:00">
+                    </div>
+                </div>
+                <div class="schedule-item">
+                    <label>Days:</label>
+                    <div class="day-buttons">
+                        <button class="day-btn" data-day="mon">Mon</button>
+                        <button class="day-btn" data-day="tue">Tue</button>
+                        <button class="day-btn" data-day="wed">Wed</button>
+                        <button class="day-btn" data-day="thu">Thu</button>
+                        <button class="day-btn" data-day="fri">Fri</button>
+                        <button class="day-btn" data-day="sat">Sat</button>
+                        <button class="day-btn" data-day="sun">Sun</button>
+                    </div>
+                </div>
+                <div class="schedule-item">
+                    <label>Blocking Mode:</label>
+                    <select id="scheduleMode" class="schedule-select">
+                        <option value="strict">Strict</option>
+                        <option value="balanced" selected>Balanced</option>
+                        <option value="relaxed">Relaxed</option>
+                    </select>
+                </div>
+                <button id="saveSchedule" class="save-schedule-btn">Save Schedule</button>
+            </div>
+        </div>
+
+        <div class="network-monitor">
+            <div class="monitor-header">
+                <h3>Network Monitor</h3>
+                <button id="toggleMonitor" class="toggle-button">Start</button>
+            </div>
+            <div class="monitor-content" id="monitorContent" style="display: none;">
+                <div class="monitor-stats">
+                    <div class="monitor-stat">
+                        <span class="monitor-label">Requests Blocked:</span>
+                        <span class="monitor-value" id="monitorBlocked">0</span>
+                    </div>
+                    <div class="monitor-stat">
+                        <span class="monitor-label">Active Connections:</span>
+                        <span class="monitor-value" id="monitorActive">0</span>
+                    </div>
+                </div>
+                <div class="recent-blocks" id="recentBlocks">
+                    <p class="empty-message">No recent blocks</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="blocking-history">
+            <div class="history-header">
+                <h3>Blocking History</h3>
+                <button id="viewHistory" class="link-button">View All →</button>
+            </div>
+            <div class="history-summary" id="historySummary">
+                <p class="empty-message">No history yet</p>
+            </div>
+        </div>
+
+        <div class="filter-lists">
+            <div class="filter-lists-header">
+                <h3>Filter Lists</h3>
+                <div class="filter-actions">
+                    <button id="importFilters" class="filter-btn">📥 Import</button>
+                    <button id="exportFilters" class="filter-btn">📤 Export</button>
+                </div>
+            </div>
+            <div class="filter-lists-content">
+                <div class="filter-list-item">
+                    <label class="switch-small">
+                        <input type="checkbox" id="filterEasyList" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span>EasyList</span>
+                </div>
+                <div class="filter-list-item">
+                    <label class="switch-small">
+                        <input type="checkbox" id="filterPrivacyList" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span>Privacy List</span>
+                </div>
+                <div class="filter-list-item">
+                    <label class="switch-small">
+                        <input type="checkbox" id="filterMalwareList" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span>Malware Domains</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <button id="showHelp" class="help-button">❓ Help & Documentation</button>
+            <button id="showTutorial" class="help-button">🎓 Interactive Tutorial</button>
+        </div>
+
+        <div class="footer">
+            <button id="exportStats" class="icon-button">📊 Export Stats</button>
+            <button id="supportBtn" class="icon-button">❓ Support</button>
+        </div>
+
+        <!-- Onboarding Overlay -->
+        <div id="onboardingOverlay" class="onboarding-overlay" style="display: none;">
+            <div class="onboarding-content">
+                <button id="closeOnboarding" class="onboarding-close">✕</button>
+                <div class="onboarding-slide" id="onboardingSlide">
+                    <!-- Slides will be inserted here -->
+                </div>
+                <div class="onboarding-nav">
+                    <button id="prevSlide" class="onboarding-nav-btn">← Previous</button>
+                    <span id="slideIndicator">1 / 5</span>
+                    <button id="nextSlide" class="onboarding-nav-btn">Next →</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Help Modal -->
+        <div id="helpModal" class="help-modal" style="display: none;">
+            <div class="help-modal-content">
+                <div class="help-modal-header">
+                    <h2>Help & Documentation</h2>
+                    <button id="closeHelp" class="help-close">✕</button>
+                </div>
+                <div class="help-content" id="helpContent">
+                    <!-- Help content will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

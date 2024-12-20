@@ -1,0 +1,91 @@
+* {
+    -webkit-user-select: none;
+    -webkit-user-drag: none;
+    cursor: default;
+}
+
+:root {
+    color-scheme: light dark;
+
+    --spacing: 16px;
+}
+
+html {
+    height: 100%;
+}
+
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+
+    gap: var(--spacing);
+    margin: var(--spacing) calc(var(--spacing) * 2);
+    height: 100%;
+
+    font: -apple-system-short-body;
+    text-align: center;
+}
+
+body:not(.platform-mac, .platform-ios) :is(.platform-mac, .platform-ios) {
+    display: none;
+}
+
+body.platform-ios .platform-mac {
+    display: none;
+}
+
+body.platform-mac .platform-ios {
+    display: none;
+}
+
+body.platform-ios .platform-mac {
+    display: none;
+}
+
+body:not(.state-on, .state-off) :is(.state-on, .state-off) {
+    display: none;
+}
+
+body.state-on :is(.state-off, .state-unknown) {
+    display: none;
+}
+
+body.state-off :is(.state-on, .state-unknown) {
+    display: none;
+}
+
+button {
+    font-size: 1em;
+}
+
+.setup-steps {
+    text-align: left;
+    margin: 12px auto;
+    max-width: 500px;
+    padding-left: 20px;
+}
+
+.setup-steps li {
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.permission-notice {
+    font-size: 0.9em;
+    color: #666;
+    max-width: 500px;
+    margin: 12px auto;
+    padding: 15px;
+    background: #f5f5f7;
+    border-radius: 10px;
+    line-height: 1.4;
+}
+
+@media (prefers-color-scheme: dark) {
+    .permission-notice {
+        color: #999;
+        background: #1c1c1e;
+    }
+}

@@ -1,0 +1,23 @@
+{
+  "images" : [
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789-3 2.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    },
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789-3 1.png",
+      "idiom" : "universal",
+      "scale" : "2x"
+    },
+    {
+      "filename" : "rosconic_ios_app_icon_of_a_shield_16130366-02e1-49b2-a67c-ebf14e053789-3.png",
+      "idiom" : "universal",
+      "scale" : "3x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
