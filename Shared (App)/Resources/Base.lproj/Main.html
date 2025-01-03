@@ -11,10 +11,32 @@
 </head>
 <body>
     <img src="../Icon.png" width="128" height="128" alt="Adios Icon">
-    <p class="platform-ios">You can turn on Adios’s Safari extension in Settings.</p>
-    <p class="platform-mac state-unknown">You can turn on Adios’s extension in Safari Extensions preferences.</p>
-    <p class="platform-mac state-on">Adios’s extension is currently on. You can turn it off in Safari Extensions preferences.</p>
-    <p class="platform-mac state-off">Adios’s extension is currently off. You can turn it on in Safari Extensions preferences.</p>
+    <p class="platform-ios">App installed! Now follow these steps:</p>
+    <ol class="platform-ios setup-steps">
+        <li>Close this app</li>
+        <li>Open iPhone Settings</li>
+        <li>Scroll down and tap Safari</li>
+        <li>Tap Extensions</li>
+        <li>Find Adios and turn it ON</li>
+    </ol>
+    <p class="platform-ios permission-notice">
+        When enabling the extension, Safari will ask for permission to access web content. This is required - Adios needs access to websites you visit to identify and block ads.
+        While this means Adios can see the content of web pages, we never collect, store, or transmit any personal information, including passwords or credit card details.
+    </p>
+    <p class="platform-mac state-unknown">To enable Adios:</p>
+    <ol class="platform-mac setup-steps">
+        <li>Open Safari</li>
+        <li>Click Safari in the menu bar</li>
+        <li>Click Settings...</li>
+        <li>Click Extensions</li>
+        <li>Find Adios and check the box to enable it</li>
+    </ol>
+    <p class="platform-mac permission-notice">
+        Safari will ask for permission to access all websites. This access is required - Adios needs to see web page content to identify and block ads effectively.
+        While Adios can see the content of web pages, we never collect, store, or transmit any of your data. Your privacy is our priority.
+    </p>
+    <p class="platform-mac state-on">Adios's extension is currently on. You can turn it off in Safari Extensions preferences.</p>
+    <p class="platform-mac state-off">Adios's extension is currently off. You can turn it on in Safari Extensions preferences.</p>
     <button class="platform-mac open-preferences">Quit and Open Safari Extensions Preferences…</button>
 </body>
 </html>

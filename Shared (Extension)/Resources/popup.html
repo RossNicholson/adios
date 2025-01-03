@@ -6,6 +6,72 @@
     <script type="module" src="popup.js"></script>
 </head>
 <body>
-    <strong>Hello World!</strong>
+    <div class="container">
+        <div class="header">
+            <img src="images/icon-32.png" alt="Adios Logo" class="logo">
+            <h1>Adios</h1>
+        </div>
+        
+        <div class="privacy-notice">
+            <p>Adios needs permission to read webpage content to identify and block ads. No personal data is collected or shared.</p>
+        </div>
+        
+        <div class="toggle-container">
+            <label class="switch">
+                <input type="checkbox" id="enableToggle" checked>
+                <span class="slider round"></span>
+            </label>
+            <span class="toggle-label">Ad Blocking</span>
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-item">
+                <span class="stat-number" id="adsBlocked">0</span>
+                <span class="stat-label">Ads Blocked</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" id="dataSaved">0 KB</span>
+                <span class="stat-label">Data Saved</span>
+            </div>
+        </div>
+
+        <div class="current-site">
+            <h2>Current Site</h2>
+            <div class="site-stats">
+                <span id="currentDomain">-</span>
+                <span id="siteBlockCount">0 ads blocked</span>
+                <button id="toggleException" class="exception-button">
+                    Allow Ads on This Site
+                </button>
+            </div>
+        </div>
+
+        <div class="exceptions-list">
+            <div class="exceptions-header">
+                <h2>Exceptions</h2>
+                <button id="toggleExceptionsList" class="toggle-list-button">
+                    Show All
+                </button>
+            </div>
+            <div class="exceptions-container">
+                <div class="exceptions-summary" id="exceptionsSummary">
+                    <span id="exceptionsCount">0</span> sites in list
+                    <button id="addManualException" class="add-exception-button">+</button>
+                </div>
+                <div class="manual-entry" id="manualEntry" style="display: none;">
+                    <input type="text" id="manualDomain" placeholder="Enter website (e.g., example.com)">
+                    <button id="saveManualEntry">Add</button>
+                </div>
+                <ul id="exceptionsList" class="collapsed">
+                    <!-- Exceptions will be listed here -->
+                </ul>
+                <p class="empty-message" id="emptyExceptions">No exceptions added</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <button id="supportBtn" class="icon-button">❓ Click Here for Support</button>
+        </div>
+    </div>
 </body>
 </html>

@@ -1,15 +1,353 @@
 :root {
     color-scheme: light dark;
-}
-
-body {
-    width: 100px;
-    padding: 10px;
-
-    font-family: system-ui;
-    text-align: center;
+    --primary-color: #34C759;
+    --text-color: #333;
+    --bg-color: #fff;
+    --border-color: #e0e0e0;
 }
 
 @media (prefers-color-scheme: dark) {
-    /* Dark Mode styles go here. */
+    :root {
+        --text-color: #fff;
+        --bg-color: #1c1c1e;
+        --border-color: #3a3a3c;
+    }
+}
+
+body {
+    width: 320px;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+.container {
+    padding: 16px;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.logo {
+    width: 32px;
+    height: 32px;
+    margin-right: 12px;
+}
+
+h1 {
+    font-size: 20px;
+    margin: 0;
+}
+
+.privacy-notice {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* Toggle Switch */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+    margin-right: 12px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .4s;
+}
+
+.slider.round {
+    border-radius: 24px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: var(--primary-color);
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+/* Stats Container */
+.stats-container {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding: 16px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+}
+
+.stat-number {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.stat-label {
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+/* Current Site */
+.current-site {
+    padding: 16px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin-bottom: 24px;
+}
+
+.current-site h2 {
+    font-size: 16px;
+    margin: 0 0 12px 0;
+}
+
+.site-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#currentDomain {
+    font-weight: 500;
+}
+
+#siteBlockCount {
+    font-size: 14px;
+    color: var(--primary-color);
+}
+
+.exception-button {
+    width: 100%;
+    padding: 8px;
+    margin-top: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.exception-button.excepted {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+/* Exceptions List */
+.exceptions-list {
+    padding: 16px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin-bottom: 24px;
+}
+
+.exceptions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.exceptions-header h2 {
+    font-size: 16px;
+    margin: 0;
+}
+
+.toggle-list-button {
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-color);
+    color: var(--primary-color);
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.exceptions-summary {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#exceptionsCount {
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.exceptions-container {
+    overflow-y: hidden;
+}
+
+#exceptionsList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 0;
+    transition: max-height 0.3s ease-out;
+}
+
+#exceptionsList.expanded {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.exception-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    margin-bottom: 4px;
+    border-radius: 6px;
+}
+
+.remove-exception {
+    padding: 2px 6px;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.remove-exception:hover {
+    color: var(--danger-color);
+    opacity: 1;
+}
+
+.empty-message {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin: 16px 0;
+}
+
+/* Footer */
+.footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.icon-button {
+    flex: 1;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.2s;
+}
+
+.icon-button:hover {
+    background: var(--border-color);
+}
+
+.add-exception-button {
+    padding: 2px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-color);
+    color: var(--primary-color);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.add-exception-button:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.manual-entry {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.manual-entry input {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 13px;
+}
+
+.manual-entry button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    background: var(--primary-color);
+    color: white;
+    cursor: pointer;
+    font-size: 13px;
 }

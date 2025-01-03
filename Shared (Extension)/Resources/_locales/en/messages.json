@@ -4,7 +4,11 @@
         "description": "The display name for the extension."
     },
     "extension_description": {
-        "message": "This is Adios. You should tell us what your extension does here.",
+        "message": "A simple and effective ad blocker for Safari that respects your privacy while blocking unwanted content.",
         "description": "Description of what the extension does."
+    },
+    "privacy_policy_url": {
+        "message": "https://rossnicholson.co.uk/privacy",
+        "description": "Link to privacy policy"
     }
 }
