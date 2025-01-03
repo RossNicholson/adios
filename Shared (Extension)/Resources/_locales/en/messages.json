@@ -8,7 +8,7 @@
         "description": "Description of what the extension does."
     },
     "privacy_policy_url": {
-        "message": "https://rossnicholson.co.uk/privacy",
+        "message": "https://rossnicholson.dev/privacy",
         "description": "Link to privacy policy"
     }
 }

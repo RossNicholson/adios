@@ -184,7 +184,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Handle buttons
     document.getElementById('supportBtn').addEventListener('click', () => {
         browser.tabs.create({
-            url: 'https://rossnicholson.co.uk'
+            url: 'https://rossnicholson.dev'
         });
     });
 });

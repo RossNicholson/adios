@@ -78,8 +78,8 @@ Supports:
 ## Support
 
 For support, feature requests, or bug reports:
-- Visit: [https://rossnicholson.co.uk](https://rossnicholson.co.uk)
-- Email: [support@rossnicholson.co.uk](mailto:support@rossnicholson.co.uk)
+- Visit: [https://rossnicholson.dev](https://rossnicholson.dev)
+- Email: [support@rossnicholson.dev](mailto:support@rossnicholson.dev)
 
 ## License
 
