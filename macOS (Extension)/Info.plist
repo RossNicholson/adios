@@ -9,6 +9,8 @@
 		<key>NSExtensionPrincipalClass</key>
 		<string>$(PRODUCT_MODULE_NAME).SafariWebExtensionHandler</string>
 	</dict>
+	<key>SFSafariContentBlockerBundleIdentifier</key>
+	<string>dev.rossnicholson.Adios.ContentBlocker</string>
 	<key>SFSafariWebExtensionConverterVersion</key>
 	<string>14.0</string>
 </dict>
