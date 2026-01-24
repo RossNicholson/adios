@@ -49,7 +49,7 @@ class ViewController: PlatformViewController, WKNavigationDelegate, WKScriptMess
         }
         
         // Check extension state on iOS (iOS 26.0+)
-        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: AppConstants.extensionBundleIdentifier) { (state, error) in
+        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { (state, error) in
             if let error = error {
                 os_log(.error, log: .viewController, "Error getting extension state: %{public}@", error.localizedDescription)
                 return
@@ -76,7 +76,7 @@ class ViewController: PlatformViewController, WKNavigationDelegate, WKScriptMess
             }
         }
 
-        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: AppConstants.extensionBundleIdentifier) { (state, error) in
+        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { (state, error) in
             if let error = error {
                 os_log(.error, log: .viewController, "Error getting extension state: %{public}@", error.localizedDescription)
                 return
@@ -107,7 +107,7 @@ class ViewController: PlatformViewController, WKNavigationDelegate, WKScriptMess
         }
 
         // macOS 26.0+ uses Settings instead of Preferences
-        SFSafariApplication.showPreferencesForExtension(withIdentifier: AppConstants.extensionBundleIdentifier) { error in
+        SFSafariApplication.showPreferencesForExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { error in
             if let error = error {
                 os_log(.error, log: .viewController, "Error showing extension preferences: %{public}@", error.localizedDescription)
                 return

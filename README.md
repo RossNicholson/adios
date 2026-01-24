@@ -4,7 +4,7 @@
   <img src="Shared (App)/Assets.xcassets/AppIcon.appiconset/rosconic_ios_app_icon_of_a_shield_ef787c77-f027-4eee-af65-c068c82fcac3.png" width="128" height="128" alt="Adios Logo">
 </p>
 
-Adios is a simple, efficient, and privacy-focused ad blocker for Safari on iOS and macOS. It helps you browse the web faster and safer by blocking ads, trackers, and other unwanted content.
+Adios is an advanced, feature-rich ad blocker for Safari on iOS and macOS. Unlike basic ad blockers, Adios offers powerful customization, real-time monitoring, and intelligent privacy protection to give you complete control over your browsing experience.
 
 ## Features
 
@@ -20,7 +20,13 @@ Adios is a simple, efficient, and privacy-focused ad blocker for Safari on iOS a
 - 🛡️ **Zero Data Collection** - No personal data collected or transmitted
 - 🔐 **Privacy Dashboard** - View detailed privacy statistics and top blocked domains
 
-### Advanced Features
+### Advanced Features (Unique to Adios)
+- 🎯 **Smart Filter Presets** - One-tap switching between Strict, Balanced, or Relaxed blocking modes
+- ✏️ **Custom Rules Editor** - Create and manage your own blocking rules for specific domains or patterns
+- 📡 **Real-Time Network Monitor** - Watch requests being blocked live as you browse
+- 📜 **Blocking History Timeline** - See exactly what was blocked, when, and where
+- 🔢 **Privacy Score Calculator** - Get an instant privacy score (0-100) for each website
+- 📥 **Filter List Import/Export** - Share your blocking configuration or import community lists
 - 📈 **Time-Based Analytics** - View statistics for Today, This Week, and This Month
 - 📋 **Site Exceptions** - Allow ads on specific trusted websites
 - 📊 **Category Breakdown** - See exactly what's being blocked (ads vs trackers)
@@ -81,6 +87,17 @@ Adios needs permission to read webpage content to identify and block ads effecti
 - **Quick Exceptions** - One-click to allow ads on current site
 - **Exception List** - Manage all your trusted sites in one place
 - **Manual Entry** - Add domains manually to exceptions list
+- **Custom Rules Per Site** - Create site-specific blocking rules
+- **Filter List Management** - Enable/disable different filter lists (EasyList, Privacy List, Malware Domains)
+
+### What Makes Adios Unique
+Unlike other ad blockers, Adios offers:
+- **Custom Rules Editor** - Create your own blocking patterns (not available in most blockers)
+- **Smart Presets** - Quick switching between blocking modes
+- **Real-Time Network Monitor** - See blocking happen live
+- **Privacy Scoring** - Understand your privacy protection level
+- **Blocking History** - Complete timeline of blocked content
+- **Filter List Import/Export** - Share configurations with others
 
 ## Technical Details
 

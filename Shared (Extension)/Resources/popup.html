@@ -148,6 +148,10 @@
             </div>
             <div class="dashboard-stats">
                 <div class="dashboard-stat">
+                    <span class="dashboard-label">Privacy Score:</span>
+                    <span class="dashboard-value privacy-score" id="privacyScore">-</span>
+                </div>
+                <div class="dashboard-stat">
                     <span class="dashboard-label">Top Blocked Domain:</span>
                     <span class="dashboard-value" id="topDomain">-</span>
                 </div>
@@ -157,6 +161,91 @@
                         <div class="breakdown-item">Ads: <span id="adsCount">0</span></div>
                         <div class="breakdown-item">Trackers: <span id="trackersCount">0</span></div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="smart-filters">
+            <h3>Smart Filter Presets</h3>
+            <div class="preset-buttons">
+                <button id="presetStrict" class="preset-btn">🛡️ Strict</button>
+                <button id="presetBalanced" class="preset-btn active">⚖️ Balanced</button>
+                <button id="presetRelaxed" class="preset-btn">🔓 Relaxed</button>
+            </div>
+            <p class="preset-description" id="presetDescription">Balanced mode blocks ads and trackers while allowing essential content.</p>
+        </div>
+
+        <div class="custom-rules">
+            <div class="custom-rules-header">
+                <h3>Custom Rules</h3>
+                <button id="addCustomRule" class="add-button">+ Add Rule</button>
+            </div>
+            <div class="custom-rules-list" id="customRulesList">
+                <p class="empty-message">No custom rules. Click + to add one.</p>
+            </div>
+        </div>
+
+        <div class="network-monitor">
+            <div class="monitor-header">
+                <h3>Network Monitor</h3>
+                <button id="toggleMonitor" class="toggle-button">Start</button>
+            </div>
+            <div class="monitor-content" id="monitorContent" style="display: none;">
+                <div class="monitor-stats">
+                    <div class="monitor-stat">
+                        <span class="monitor-label">Requests Blocked:</span>
+                        <span class="monitor-value" id="monitorBlocked">0</span>
+                    </div>
+                    <div class="monitor-stat">
+                        <span class="monitor-label">Active Connections:</span>
+                        <span class="monitor-value" id="monitorActive">0</span>
+                    </div>
+                </div>
+                <div class="recent-blocks" id="recentBlocks">
+                    <p class="empty-message">No recent blocks</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="blocking-history">
+            <div class="history-header">
+                <h3>Blocking History</h3>
+                <button id="viewHistory" class="link-button">View All →</button>
+            </div>
+            <div class="history-summary" id="historySummary">
+                <p class="empty-message">No history yet</p>
+            </div>
+        </div>
+
+        <div class="filter-lists">
+            <div class="filter-lists-header">
+                <h3>Filter Lists</h3>
+                <div class="filter-actions">
+                    <button id="importFilters" class="filter-btn">📥 Import</button>
+                    <button id="exportFilters" class="filter-btn">📤 Export</button>
+                </div>
+            </div>
+            <div class="filter-lists-content">
+                <div class="filter-list-item">
+                    <label class="switch-small">
+                        <input type="checkbox" id="filterEasyList" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span>EasyList</span>
+                </div>
+                <div class="filter-list-item">
+                    <label class="switch-small">
+                        <input type="checkbox" id="filterPrivacyList" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span>Privacy List</span>
+                </div>
+                <div class="filter-list-item">
+                    <label class="switch-small">
+                        <input type="checkbox" id="filterMalwareList" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span>Malware Domains</span>
                 </div>
             </div>
         </div>

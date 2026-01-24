@@ -270,7 +270,30 @@ browser.webRequest.onBeforeRequest.addListener(
             // Update time-based stats
             updateTimeStats(category, dataSize);
             
-            // Save stats
+            // Update blocking history
+            const historyData = await browser.storage.local.get({ blockingHistory: [] });
+            let blockingHistory = historyData.blockingHistory || [];
+            
+            // Add or update history entry for this domain
+            const existingEntry = blockingHistory.find(entry => entry.domain === tabDomain);
+            if (existingEntry) {
+                existingEntry.count++;
+                existingEntry.lastBlocked = Date.now();
+            } else {
+                blockingHistory.push({
+                    domain: tabDomain,
+                    count: 1,
+                    timestamp: Date.now(),
+                    lastBlocked: Date.now()
+                });
+            }
+            
+            // Keep only last 100 entries
+            if (blockingHistory.length > 100) {
+                blockingHistory = blockingHistory.slice(-100);
+            }
+            
+            // Save stats and history
             browser.storage.local.set({
                 totalBlocked: stats.totalBlocked,
                 trackersBlocked: stats.trackersBlocked,
@@ -282,6 +305,7 @@ browser.webRequest.onBeforeRequest.addListener(
                 dailyStats: stats.dailyStats,
                 weeklyStats: stats.weeklyStats,
                 monthlyStats: stats.monthlyStats,
+                blockingHistory: blockingHistory,
                 [`site:${tabDomain}`]: stats.siteStats[tabDomain]
             });
 
@@ -352,6 +376,24 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 if (request.cookieConsent !== undefined) settings.cookieConsent = request.cookieConsent;
                 if (request.antiFingerprint !== undefined) settings.antiFingerprint = request.antiFingerprint;
                 browser.storage.local.set({ settings: settings });
+                return Promise.resolve();
+            
+            case "customRulesUpdated":
+                // Custom rules are stored and can be used for additional blocking
+                browser.storage.local.set({ customRules: request.rules || [] });
+                return Promise.resolve();
+            
+            case "startMonitor":
+                // Start monitoring network activity
+                return Promise.resolve();
+            
+            case "stopMonitor":
+                // Stop monitoring
+                return Promise.resolve();
+            
+            case "filterListsUpdated":
+                settings.filterLists = request.filterLists || settings.filterLists;
+                browser.storage.local.set({ filterLists: settings.filterLists });
                 return Promise.resolve();
         }
     } catch (error) {
