@@ -24,6 +24,56 @@
             <span class="toggle-label">Ad Blocking</span>
         </div>
 
+        <div class="blocking-categories">
+            <h3>Blocking Categories</h3>
+            <div class="category-item">
+                <label class="switch-small">
+                    <input type="checkbox" id="blockAds" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span>Ads</span>
+            </div>
+            <div class="category-item">
+                <label class="switch-small">
+                    <input type="checkbox" id="blockTrackers" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span>Trackers</span>
+            </div>
+            <div class="category-item">
+                <label class="switch-small">
+                    <input type="checkbox" id="blockSocial" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span>Social Media</span>
+            </div>
+            <div class="category-item">
+                <label class="switch-small">
+                    <input type="checkbox" id="blockMalware" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span>Malware</span>
+            </div>
+        </div>
+
+        <div class="privacy-features">
+            <h3>Privacy Features</h3>
+            <div class="category-item">
+                <label class="switch-small">
+                    <input type="checkbox" id="cookieConsent" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span>Auto-dismiss Cookie Consent</span>
+            </div>
+            <div class="category-item">
+                <label class="switch-small">
+                    <input type="checkbox" id="antiFingerprint" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span>Anti-Fingerprinting</span>
+            </div>
+        </div>
+
         <div class="stats-container">
             <div class="stat-item">
                 <span class="stat-number" id="adsBlocked">0</span>
@@ -32,6 +82,28 @@
             <div class="stat-item">
                 <span class="stat-number" id="dataSaved">0 KB</span>
                 <span class="stat-label">Data Saved</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" id="trackersBlocked">0</span>
+                <span class="stat-label">Trackers</span>
+            </div>
+        </div>
+
+        <div class="time-stats">
+            <div class="time-stat-tabs">
+                <button class="time-tab active" data-period="today">Today</button>
+                <button class="time-tab" data-period="week">Week</button>
+                <button class="time-tab" data-period="month">Month</button>
+            </div>
+            <div class="time-stat-content">
+                <div class="time-stat-item">
+                    <span class="time-stat-label">Blocked Today:</span>
+                    <span class="time-stat-value" id="todayBlocked">0</span>
+                </div>
+                <div class="time-stat-item">
+                    <span class="time-stat-label">Data Saved:</span>
+                    <span class="time-stat-value" id="todayDataSaved">0 KB</span>
+                </div>
             </div>
         </div>
 
@@ -69,8 +141,29 @@
             </div>
         </div>
 
+        <div class="privacy-dashboard">
+            <div class="dashboard-header">
+                <h3>Privacy Dashboard</h3>
+                <button id="viewFullReport" class="link-button">View Full Report →</button>
+            </div>
+            <div class="dashboard-stats">
+                <div class="dashboard-stat">
+                    <span class="dashboard-label">Top Blocked Domain:</span>
+                    <span class="dashboard-value" id="topDomain">-</span>
+                </div>
+                <div class="dashboard-stat">
+                    <span class="dashboard-label">Category Breakdown:</span>
+                    <div class="category-breakdown" id="categoryBreakdown">
+                        <div class="breakdown-item">Ads: <span id="adsCount">0</span></div>
+                        <div class="breakdown-item">Trackers: <span id="trackersCount">0</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="footer">
-            <button id="supportBtn" class="icon-button">❓ Click Here for Support</button>
+            <button id="exportStats" class="icon-button">📊 Export Stats</button>
+            <button id="supportBtn" class="icon-button">❓ Support</button>
         </div>
     </div>
 </body>

@@ -6,9 +6,11 @@
 //
 
 import WebKit
+import os.log
 
 #if os(iOS)
 import UIKit
+import SafariServices
 typealias PlatformViewController = UIViewController
 #elseif os(macOS)
 import Cocoa
@@ -16,7 +18,9 @@ import SafariServices
 typealias PlatformViewController = NSViewController
 #endif
 
-let extensionBundleIdentifier = "dev.rossnicholson.Adios.Extension"
+extension OSLog {
+    static let viewController = OSLog(subsystem: "dev.rossnicholson.Adios", category: "ViewController")
+}
 
 class ViewController: PlatformViewController, WKNavigationDelegate, WKScriptMessageHandler {
 
@@ -38,21 +42,58 @@ class ViewController: PlatformViewController, WKNavigationDelegate, WKScriptMess
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
 #if os(iOS)
-        webView.evaluateJavaScript("show('ios')")
+        webView.evaluateJavaScript("show('ios')") { result, error in
+            if let error = error {
+                os_log(.error, log: .viewController, "Error evaluating JavaScript: %{public}@", error.localizedDescription)
+            }
+        }
+        
+        // Check extension state on iOS (iOS 26.0+)
+        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: AppConstants.extensionBundleIdentifier) { (state, error) in
+            if let error = error {
+                os_log(.error, log: .viewController, "Error getting extension state: %{public}@", error.localizedDescription)
+                return
+            }
+            
+            guard let state = state else {
+                os_log(.error, log: .viewController, "Extension state is nil")
+                return
+            }
+            
+            DispatchQueue.main.async {
+                let jsCode = "show('ios', \(state.isEnabled), true)"
+                webView.evaluateJavaScript(jsCode) { result, error in
+                    if let error = error {
+                        os_log(.error, log: .viewController, "Error evaluating JavaScript: %{public}@", error.localizedDescription)
+                    }
+                }
+            }
+        }
 #elseif os(macOS)
-        webView.evaluateJavaScript("show('mac')")
+        webView.evaluateJavaScript("show('mac')") { result, error in
+            if let error = error {
+                os_log(.error, log: .viewController, "Error evaluating JavaScript: %{public}@", error.localizedDescription)
+            }
+        }
 
-        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: extensionBundleIdentifier) { (state, error) in
-            guard let state = state, error == nil else {
-                // Insert code to inform the user that something went wrong.
+        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: AppConstants.extensionBundleIdentifier) { (state, error) in
+            if let error = error {
+                os_log(.error, log: .viewController, "Error getting extension state: %{public}@", error.localizedDescription)
+                return
+            }
+            
+            guard let state = state else {
+                os_log(.error, log: .viewController, "Extension state is nil")
                 return
             }
 
             DispatchQueue.main.async {
-                if #available(macOS 13, *) {
-                    webView.evaluateJavaScript("show('mac', \(state.isEnabled), true)")
-                } else {
-                    webView.evaluateJavaScript("show('mac', \(state.isEnabled), false)")
+                // macOS 26.0+ uses Settings instead of Preferences
+                let jsCode = "show('mac', \(state.isEnabled), true)"
+                webView.evaluateJavaScript(jsCode) { result, error in
+                    if let error = error {
+                        os_log(.error, log: .viewController, "Error evaluating JavaScript: %{public}@", error.localizedDescription)
+                    }
                 }
             }
         }
@@ -61,13 +102,14 @@ class ViewController: PlatformViewController, WKNavigationDelegate, WKScriptMess
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
 #if os(macOS)
-        if (message.body as! String != "open-preferences") {
+        guard let messageBody = message.body as? String, messageBody == "open-preferences" else {
             return
         }
 
-        SFSafariApplication.showPreferencesForExtension(withIdentifier: extensionBundleIdentifier) { error in
-            guard error == nil else {
-                // Insert code to inform the user that something went wrong.
+        // macOS 26.0+ uses Settings instead of Preferences
+        SFSafariApplication.showPreferencesForExtension(withIdentifier: AppConstants.extensionBundleIdentifier) { error in
+            if let error = error {
+                os_log(.error, log: .viewController, "Error showing extension preferences: %{public}@", error.localizedDescription)
                 return
             }
 

@@ -1,9 +1,18 @@
 import Foundation
+import SafariServices
+import os.log
+
+extension OSLog {
+    static let blockingRules = OSLog(subsystem: "dev.rossnicholson.Adios", category: "BlockingRules")
+}
 
 class BlockingRuleManager {
     static let shared = BlockingRuleManager()
     
     private let rulesURL: URL
+    
+    // Bundle identifier for content blocker extension
+    static let contentBlockerIdentifier = "dev.rossnicholson.Adios.ContentBlocker"
     
     private init() {
         guard let rulesURL = Bundle.main.url(forResource: "blocking-rules", withExtension: "json", subdirectory: "blocking") else {
@@ -18,7 +27,7 @@ class BlockingRuleManager {
             let rules = try JSONSerialization.jsonObject(with: data) as? [[String: Any]]
             return rules
         } catch {
-            print("Error loading rules: \(error)")
+            os_log(.error, log: .blockingRules, "Error loading blocking rules: %{public}@", error.localizedDescription)
             return nil
         }
     }
@@ -45,21 +54,14 @@ class BlockingRuleManager {
         return true
     }
     
-    #if os(iOS)
-    func reloadContentBlocker() {
-        SFContentBlockerManager.reloadContentBlocker(withIdentifier: "dev.rossnicholson.Adios.ContentBlocker", completionHandler: { error in
+    func reloadContentBlocker(completion: ((Error?) -> Void)? = nil) {
+        SFContentBlockerManager.reloadContentBlocker(withIdentifier: Self.contentBlockerIdentifier) { error in
             if let error = error {
-                print("Error reloading content blocker: \(error)")
+                os_log(.error, log: .blockingRules, "Error reloading content blocker: %{public}@", error.localizedDescription)
+            } else {
+                os_log(.info, log: .blockingRules, "Content blocker reloaded successfully")
             }
-        })
+            completion?(error)
+        }
     }
-    #elseif os(macOS)
-    func reloadContentBlocker() {
-        SFContentBlockerManager.reloadContentBlocker(withIdentifier: "dev.rossnicholson.Adios.ContentBlocker", completionHandler: { error in
-            if let error = error {
-                print("Error reloading content blocker: \(error)")
-            }
-        })
-    }
-    #endif
 } 

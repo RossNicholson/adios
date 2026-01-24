@@ -8,14 +8,29 @@ Adios is a simple, efficient, and privacy-focused ad blocker for Safari on iOS a
 
 ## Features
 
-- 🚫 Blocks ads and trackers across websites
-- 📊 Shows real-time blocking statistics
-- 🔒 Protects your privacy
-- ⚡️ Improves page load times
-- 📱 Works on both iOS and macOS
-- 🎯 Site-specific controls
-- 💾 Tracks data savings
-- 🛡️ No data collection or tracking
+### Core Blocking
+- 🚫 **Advanced Ad Blocking** - Blocks ads, trackers, social media widgets, and malware
+- 🎯 **Category-Based Blocking** - Toggle blocking for Ads, Trackers, Social Media, and Malware individually
+- 📊 **Real-Time Statistics** - Track ads blocked, trackers blocked, and data saved
+- ⚡️ **Performance Boost** - Faster page loads by blocking unwanted content
+
+### Privacy Protection
+- 🔒 **Anti-Fingerprinting** - Protects against browser fingerprinting techniques
+- 🍪 **Cookie Consent Auto-Dismiss** - Automatically handles cookie consent banners
+- 🛡️ **Zero Data Collection** - No personal data collected or transmitted
+- 🔐 **Privacy Dashboard** - View detailed privacy statistics and top blocked domains
+
+### Advanced Features
+- 📈 **Time-Based Analytics** - View statistics for Today, This Week, and This Month
+- 📋 **Site Exceptions** - Allow ads on specific trusted websites
+- 📊 **Category Breakdown** - See exactly what's being blocked (ads vs trackers)
+- 💾 **Export Statistics** - Export your blocking statistics as JSON
+- 🌐 **Top Blocked Domains** - See which domains are blocked most frequently
+
+### Platform Support
+- 📱 **iOS 26.0+** - Full feature support on iPhone and iPad
+- 💻 **macOS 26.0+** - Native support for Mac
+- 🌐 **Safari 26.0+** - Optimized for latest Safari
 
 ## Installation
 
@@ -44,23 +59,28 @@ Adios needs permission to read webpage content to identify and block ads effecti
 
 ## Features in Detail
 
-### Ad Blocking
-- Blocks common ad networks
-- Removes ad elements from pages
-- Prevents tracking scripts
-- Blocks unwanted pop-ups
+### Advanced Blocking Categories
+- **Ads** - Blocks display ads, video ads, and sponsored content
+- **Trackers** - Prevents analytics and tracking scripts from monitoring your activity
+- **Social Media** - Blocks social media widgets and tracking pixels
+- **Malware** - Protects against known malicious domains
 
-### Statistics
-- Number of ads blocked
-- Data saved from blocked content
-- Site-specific blocking stats
-- Real-time monitoring
+### Privacy Features
+- **Anti-Fingerprinting** - Spoofs canvas, WebGL, and timing-based fingerprinting
+- **Cookie Consent Management** - Automatically dismisses cookie consent banners
+- **Privacy Dashboard** - Comprehensive view of what's being blocked and why
 
-### Site Controls
-- Allow ads on specific sites
-- Custom rules per domain
-- Easy toggle for trusted sites
-- Exception management
+### Statistics & Analytics
+- **Real-Time Counter** - See ads and trackers blocked as you browse
+- **Time-Based Views** - Track your protection over time (daily/weekly/monthly)
+- **Data Savings** - See how much bandwidth you've saved
+- **Category Breakdown** - Understand what types of content are being blocked
+- **Top Domains** - See which domains are blocked most frequently
+
+### Site Management
+- **Quick Exceptions** - One-click to allow ads on current site
+- **Exception List** - Manage all your trusted sites in one place
+- **Manual Entry** - Add domains manually to exceptions list
 
 ## Technical Details
 
@@ -71,9 +91,9 @@ Built using:
 - JavaScript
 
 Supports:
-- iOS 15.0+
-- macOS 12.0+
-- Safari 15.0+
+- iOS 26.0+
+- macOS 26.0+
+- Safari 26.0+
 
 ## Support
 
