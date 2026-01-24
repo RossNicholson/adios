@@ -42,31 +42,11 @@ class ViewController: PlatformViewController, WKNavigationDelegate, WKScriptMess
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
 #if os(iOS)
+        // iOS doesn't support checking Safari extension state programmatically
+        // Users must enable the extension manually in Settings > Safari > Extensions
         webView.evaluateJavaScript("show('ios')") { result, error in
             if let error = error {
                 os_log(.error, log: .viewController, "Error evaluating JavaScript: %{public}@", error.localizedDescription)
-            }
-        }
-        
-        // Check extension state on iOS (iOS 26.0+)
-        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { (state, error) in
-            if let error = error {
-                os_log(.error, log: .viewController, "Error getting extension state: %{public}@", error.localizedDescription)
-                return
-            }
-            
-            guard let state = state else {
-                os_log(.error, log: .viewController, "Extension state is nil")
-                return
-            }
-            
-            DispatchQueue.main.async {
-                let jsCode = "show('ios', \(state.isEnabled), true)"
-                webView.evaluateJavaScript(jsCode) { result, error in
-                    if let error = error {
-                        os_log(.error, log: .viewController, "Error evaluating JavaScript: %{public}@", error.localizedDescription)
-                    }
-                }
             }
         }
 #elseif os(macOS)

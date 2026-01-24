@@ -22,8 +22,19 @@ function removeAds(selectors) {
     return removedCount;
 }
 
-// Cookie consent blocker
+// Cookie consent blocker - with safeguards to prevent refresh loops
+let cookieConsentHandled = false;
+let cookieConsentAttempts = 0;
+const MAX_COOKIE_CONSENT_ATTEMPTS = 2; // Limit attempts per page
+
 function blockCookieConsent() {
+    // Prevent infinite loops - only try a few times per page
+    if (cookieConsentHandled || cookieConsentAttempts >= MAX_COOKIE_CONSENT_ATTEMPTS) {
+        return;
+    }
+    
+    cookieConsentAttempts++;
+    
     // Common cookie consent selectors
     const cookieSelectors = [
         '#cookie-banner',
@@ -42,6 +53,8 @@ function blockCookieConsent() {
         '[aria-label*="consent" i]'
     ];
     
+    let foundBanner = false;
+    
     cookieSelectors.forEach(selector => {
         try {
             const elements = document.querySelectorAll(selector);
@@ -49,8 +62,22 @@ function blockCookieConsent() {
                 // Check if it's likely a cookie consent banner
                 const text = element.textContent.toLowerCase();
                 if (text.includes('cookie') || text.includes('consent') || text.includes('accept') || text.includes('gdpr')) {
+                    // Only hide, don't remove immediately to avoid triggering reloads
                     element.style.display = 'none';
-                    element.remove();
+                    element.style.visibility = 'hidden';
+                    element.style.opacity = '0';
+                    element.style.height = '0';
+                    element.style.overflow = 'hidden';
+                    foundBanner = true;
+                    
+                    // Remove after a delay to prevent immediate reload
+                    setTimeout(() => {
+                        try {
+                            element.remove();
+                        } catch (e) {
+                            // Element may have been removed already
+                        }
+                    }, 1000);
                 }
             });
         } catch (e) {
@@ -58,21 +85,50 @@ function blockCookieConsent() {
         }
     });
     
-    // Try to click "Accept" or "Agree" buttons automatically
-    const acceptButtons = document.querySelectorAll(
-        'button:not([disabled]), a, [role="button"]'
-    );
-    acceptButtons.forEach(button => {
-        const text = button.textContent.toLowerCase();
-        if ((text.includes('accept') || text.includes('agree') || text.includes('ok')) && 
-            (text.includes('cookie') || text.includes('all'))) {
-            try {
-                button.click();
-            } catch (e) {
-                // Button may not be clickable
+    // Only try clicking buttons if we found a banner and haven't clicked yet
+    if (foundBanner && cookieConsentAttempts === 1) {
+        // Be very selective about which buttons to click
+        const acceptButtons = document.querySelectorAll(
+            'button:not([disabled]):not([type="submit"]), [role="button"]:not([type="submit"])'
+        );
+        
+        acceptButtons.forEach(button => {
+            // Skip buttons that might cause navigation
+            const form = button.closest('form');
+            const href = button.getAttribute('href') || button.closest('a')?.getAttribute('href');
+            if (form || href) {
+                return; // Skip buttons in forms or links
             }
-        }
-    });
+            
+            const text = button.textContent.toLowerCase();
+            const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
+            const combinedText = text + ' ' + ariaLabel;
+            
+            // Only click very specific accept buttons
+            if ((combinedText.includes('accept') || combinedText.includes('agree') || combinedText.includes('ok')) && 
+                (combinedText.includes('cookie') || combinedText.includes('all')) &&
+                !combinedText.includes('reject') && !combinedText.includes('decline')) {
+                try {
+                    // Use a small delay and mark as handled immediately
+                    cookieConsentHandled = true;
+                    setTimeout(() => {
+                        try {
+                            button.click();
+                        } catch (e) {
+                            // Button may not be clickable
+                        }
+                    }, 500);
+                } catch (e) {
+                    // Button may not be clickable
+                }
+            }
+        });
+    }
+    
+    // Mark as handled if we found and processed a banner
+    if (foundBanner) {
+        cookieConsentHandled = true;
+    }
 }
 
 // Anti-fingerprinting protection
@@ -160,7 +216,9 @@ function debouncedAdRemoval() {
                 if (settings.enabled) {
                     removeAds(response?.selectors || []);
                 }
-                if (settings.cookieConsent) {
+                // Only call cookie consent handler if we haven't already handled it
+                // and limit how often we check (every 2 seconds max)
+                if (settings.cookieConsent && !cookieConsentHandled) {
                     blockCookieConsent();
                 }
             })
@@ -203,6 +261,53 @@ if (document.body) {
         childList: true
     });
 }
+
+// Reset cookie consent handling on navigation
+let currentUrl = window.location.href;
+
+// Monitor for URL changes (SPA navigation)
+const checkUrlChange = () => {
+    if (window.location.href !== currentUrl) {
+        currentUrl = window.location.href;
+        cookieConsentHandled = false;
+        cookieConsentAttempts = 0;
+    }
+};
+
+// Check URL on various events
+setInterval(checkUrlChange, 1000);
+
+// Also reset on popstate (back/forward navigation)
+window.addEventListener('popstate', () => {
+    currentUrl = window.location.href;
+    cookieConsentHandled = false;
+    cookieConsentAttempts = 0;
+});
+
+// Reset on hashchange
+window.addEventListener('hashchange', () => {
+    currentUrl = window.location.href;
+    cookieConsentHandled = false;
+    cookieConsentAttempts = 0;
+});
+
+// Performance tracking
+let pageLoadStartTime = performance.now();
+
+window.addEventListener('load', () => {
+    const loadTime = performance.now() - pageLoadStartTime;
+    browser.runtime.sendMessage({
+        type: 'pageLoadTime',
+        loadTime: loadTime,
+        url: window.location.href
+    }).catch(() => {
+        // Background script may not be ready
+    });
+    
+    // Reset cookie consent handling on full page load
+    cookieConsentHandled = false;
+    cookieConsentAttempts = 0;
+});
 
 // Listen for settings updates
 browser.runtime.onMessage.addListener((request, sender, sendResponse) => {

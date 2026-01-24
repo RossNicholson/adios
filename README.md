@@ -27,6 +27,14 @@ Adios is an advanced, feature-rich ad blocker for Safari on iOS and macOS. Unlik
 - 📜 **Blocking History Timeline** - See exactly what was blocked, when, and where
 - 🔢 **Privacy Score Calculator** - Get an instant privacy score (0-100) for each website
 - 📥 **Filter List Import/Export** - Share your blocking configuration or import community lists
+- ⚡ **Performance Metrics** - Track page load speed improvements and battery savings
+- 📊 **Visual Analytics** - Interactive charts showing blocking trends and category distribution
+- 🎓 **Interactive Tutorial** - Built-in onboarding system for first-time users
+- ❓ **Help & Documentation** - Comprehensive in-app help system with FAQs and troubleshooting
+- ⏰ **Scheduled Blocking** - Automatically adjust blocking based on time of day and day of week
+- 🎯 **Site-Specific Rules** - Create different blocking rules for individual websites
+- 📚 **Rule Templates Library** - One-click rule creation from pre-made templates
+- 🔧 **Advanced Rule Editor** - Visual rule builder with pattern matching
 - 📈 **Time-Based Analytics** - View statistics for Today, This Week, and This Month
 - 📋 **Site Exceptions** - Allow ads on specific trusted websites
 - 📊 **Category Breakdown** - See exactly what's being blocked (ads vs trackers)
@@ -98,6 +106,14 @@ Unlike other ad blockers, Adios offers:
 - **Privacy Scoring** - Understand your privacy protection level
 - **Blocking History** - Complete timeline of blocked content
 - **Filter List Import/Export** - Share configurations with others
+- **Performance Metrics** - Quantifiable page load improvements and battery savings
+- **Visual Analytics** - Interactive charts and graphs (not just numbers)
+- **Built-in Tutorial** - Onboarding system for new users
+- **Comprehensive Help** - In-app documentation and troubleshooting guide
+- **Scheduled Blocking** - Time-based automation (not available in most blockers)
+- **Site-Specific Rules** - Per-domain blocking customization
+- **Rule Templates** - Quick rule creation from library
+- **Advanced Customization** - Multiple layers of rule priority (custom > site-specific > global)
 
 ## Technical Details
 

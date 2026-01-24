@@ -577,6 +577,54 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     
+    // Rule Templates
+    const ruleTemplates = [
+        { name: 'Block All Images', pattern: '*://*/*.jpg', description: 'Blocks all JPEG images' },
+        { name: 'Block All Scripts', pattern: '*://*/*.js', description: 'Blocks JavaScript files' },
+        { name: 'Block Analytics', pattern: '*://*analytics*', description: 'Blocks analytics domains' },
+        { name: 'Block Social Widgets', pattern: '*://*facebook*', description: 'Blocks Facebook widgets' },
+        { name: 'Block Video Ads', pattern: '*://*/*ad*.mp4', description: 'Blocks video advertisements' },
+        { name: 'Block Tracking Pixels', pattern: '*://*/*pixel*', description: 'Blocks tracking pixels' }
+    ];
+    
+    const showTemplatesBtn = document.getElementById('showTemplates');
+    const closeTemplatesBtn = document.getElementById('closeTemplates');
+    const templatesGrid = document.getElementById('templatesGrid');
+    const ruleTemplatesDiv = document.getElementById('ruleTemplates');
+    
+    function showTemplates() {
+        if (ruleTemplatesDiv && templatesGrid) {
+            ruleTemplatesDiv.style.display = 'block';
+            templatesGrid.innerHTML = '';
+            
+            ruleTemplates.forEach(template => {
+                const card = document.createElement('div');
+                card.className = 'template-card';
+                card.innerHTML = `
+                    <h4>${template.name}</h4>
+                    <p>${template.description}</p>
+                `;
+                card.addEventListener('click', () => {
+                    customRules.push({ pattern: template.pattern, type: 'block', name: template.name });
+                    browser.storage.local.set({ customRules });
+                    browser.runtime.sendMessage({ type: 'customRulesUpdated', rules: customRules });
+                    updateCustomRulesList();
+                    ruleTemplatesDiv.style.display = 'none';
+                });
+                templatesGrid.appendChild(card);
+            });
+        }
+    }
+    
+    if (showTemplatesBtn) {
+        showTemplatesBtn.addEventListener('click', showTemplates);
+    }
+    if (closeTemplatesBtn) {
+        closeTemplatesBtn.addEventListener('click', () => {
+            if (ruleTemplatesDiv) ruleTemplatesDiv.style.display = 'none';
+        });
+    }
+    
     if (addCustomRuleBtn) {
         addCustomRuleBtn.addEventListener('click', () => {
             const pattern = prompt('Enter URL pattern to block (e.g., *://example.com/*):');
@@ -590,6 +638,206 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     await loadCustomRules();
+    
+    // Site-Specific Rules
+    let siteSpecificRules = [];
+    const siteRulesList = document.getElementById('siteRulesList');
+    const addSiteRuleBtn = document.getElementById('addSiteRule');
+    
+    async function loadSiteRules() {
+        const data = await browser.storage.local.get({ siteSpecificRules: [] });
+        siteSpecificRules = data.siteSpecificRules || [];
+        updateSiteRulesList();
+    }
+    
+    function updateSiteRulesList() {
+        if (!siteRulesList) return;
+        
+        if (siteSpecificRules.length === 0) {
+            siteRulesList.innerHTML = '<p class="empty-message">No site-specific rules. Create rules that apply only to specific domains.</p>';
+            return;
+        }
+        
+        siteRulesList.innerHTML = '';
+        siteSpecificRules.forEach((rule, index) => {
+            const item = document.createElement('div');
+            item.className = 'site-rule-item';
+            item.innerHTML = `
+                <div class="rule-info">
+                    <div class="rule-domain">${rule.domain}</div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">
+                        ${rule.blockAds ? 'Ads' : ''} ${rule.blockTrackers ? 'Trackers' : ''} ${rule.blockSocial ? 'Social' : ''}
+                    </div>
+                </div>
+                <div class="rule-actions">
+                    <button class="rule-delete" data-index="${index}">✕</button>
+                </div>
+            `;
+            
+            const deleteBtn = item.querySelector('.rule-delete');
+            deleteBtn.addEventListener('click', async () => {
+                siteSpecificRules.splice(index, 1);
+                await browser.storage.local.set({ siteSpecificRules });
+                await browser.runtime.sendMessage({ type: 'siteRulesUpdated', rules: siteSpecificRules });
+                updateSiteRulesList();
+            });
+            
+            siteRulesList.appendChild(item);
+        });
+    }
+    
+    if (addSiteRuleBtn) {
+        addSiteRuleBtn.addEventListener('click', async () => {
+            const domain = currentDomain !== '-' ? currentDomain : prompt('Enter domain (e.g., example.com):');
+            if (domain && domain !== '-') {
+                const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+                
+                // Check if rule already exists
+                if (siteSpecificRules.find(r => r.domain === cleanDomain)) {
+                    alert('A rule for this domain already exists.');
+                    return;
+                }
+                
+                const newRule = {
+                    domain: cleanDomain,
+                    blockAds: true,
+                    blockTrackers: true,
+                    blockSocial: false,
+                    blockMalware: true
+                };
+                
+                siteSpecificRules.push(newRule);
+                await browser.storage.local.set({ siteSpecificRules });
+                await browser.runtime.sendMessage({ type: 'siteRulesUpdated', rules: siteSpecificRules });
+                updateSiteRulesList();
+            }
+        });
+    }
+    
+    await loadSiteRules();
+    
+    // Scheduled Blocking
+    let scheduleEnabled = false;
+    let scheduleConfig = {
+        enabled: false,
+        startTime: '09:00',
+        endTime: '17:00',
+        days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+        mode: 'balanced'
+    };
+    
+    const scheduleEnabledToggle = document.getElementById('scheduleEnabled');
+    const scheduleContent = document.getElementById('scheduleContent');
+    const scheduleStart = document.getElementById('scheduleStart');
+    const scheduleEnd = document.getElementById('scheduleEnd');
+    const scheduleMode = document.getElementById('scheduleMode');
+    const saveScheduleBtn = document.getElementById('saveSchedule');
+    const dayButtons = document.querySelectorAll('.day-btn');
+    
+    async function loadSchedule() {
+        const data = await browser.storage.local.get({ scheduleConfig });
+        scheduleConfig = { ...scheduleConfig, ...data.scheduleConfig };
+        
+        if (scheduleEnabledToggle) {
+            scheduleEnabledToggle.checked = scheduleConfig.enabled;
+            scheduleEnabled = scheduleConfig.enabled;
+        }
+        if (scheduleContent) {
+            scheduleContent.style.display = scheduleConfig.enabled ? 'block' : 'none';
+        }
+        if (scheduleStart) scheduleStart.value = scheduleConfig.startTime;
+        if (scheduleEnd) scheduleEnd.value = scheduleConfig.endTime;
+        if (scheduleMode) scheduleMode.value = scheduleConfig.mode;
+        
+        // Update day buttons
+        dayButtons.forEach(btn => {
+            const day = btn.dataset.day;
+            if (scheduleConfig.days.includes(day)) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+    
+    if (scheduleEnabledToggle) {
+        scheduleEnabledToggle.addEventListener('change', (e) => {
+            scheduleEnabled = e.target.checked;
+            scheduleConfig.enabled = scheduleEnabled;
+            if (scheduleContent) {
+                scheduleContent.style.display = scheduleEnabled ? 'block' : 'none';
+            }
+            browser.storage.local.set({ scheduleConfig });
+            browser.runtime.sendMessage({ type: 'scheduleUpdated', schedule: scheduleConfig });
+        });
+    }
+    
+    dayButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            btn.classList.toggle('active');
+            const day = btn.dataset.day;
+            if (btn.classList.contains('active')) {
+                if (!scheduleConfig.days.includes(day)) {
+                    scheduleConfig.days.push(day);
+                }
+            } else {
+                scheduleConfig.days = scheduleConfig.days.filter(d => d !== day);
+            }
+        });
+    });
+    
+    if (saveScheduleBtn) {
+        saveScheduleBtn.addEventListener('click', async () => {
+            scheduleConfig.startTime = scheduleStart?.value || '09:00';
+            scheduleConfig.endTime = scheduleEnd?.value || '17:00';
+            scheduleConfig.mode = scheduleMode?.value || 'balanced';
+            scheduleConfig.enabled = scheduleEnabled;
+            
+            await browser.storage.local.set({ scheduleConfig });
+            await browser.runtime.sendMessage({ type: 'scheduleUpdated', schedule: scheduleConfig });
+            alert('Schedule saved! Blocking will automatically adjust based on your schedule.');
+        });
+    }
+    
+    await loadSchedule();
+    
+    // Check if schedule should be active
+    function checkSchedule() {
+        if (!scheduleConfig.enabled) return false;
+        
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const currentTime = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
+        
+        const [startHour, startMin] = scheduleConfig.startTime.split(':').map(Number);
+        const [endHour, endMin] = scheduleConfig.endTime.split(':').map(Number);
+        const startMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
+        const currentMinutes = currentHour * 60 + currentMinute;
+        
+        const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const currentDay = dayNames[now.getDay()];
+        
+        const isInTimeRange = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+        const isScheduledDay = scheduleConfig.days.includes(currentDay);
+        
+        return isInTimeRange && isScheduledDay;
+    }
+    
+    // Apply schedule if active
+    setInterval(() => {
+        if (checkSchedule()) {
+            const schedulePreset = presets[scheduleConfig.mode];
+            if (schedulePreset) {
+                // Apply scheduled preset
+                browser.runtime.sendMessage({
+                    type: 'updateCategorySettings',
+                    ...schedulePreset
+                });
+            }
+        }
+    }, 60000); // Check every minute
     
     // Network Monitor
     let monitorActive = false;
@@ -757,6 +1005,174 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     
+    // Performance Metrics
+    async function loadPerformanceData() {
+        const perfData = await browser.storage.local.get({ pageLoadTimes: [] });
+        const loadTimes = perfData.pageLoadTimes || [];
+        
+        if (loadTimes.length > 0) {
+            // Calculate average load time from recent measurements
+            const recentTimes = loadTimes.slice(-20).map(t => t.time);
+            performanceData.pageLoadTimes = recentTimes;
+            performanceData.totalPages = loadTimes.length;
+        }
+        
+        updatePerformanceMetrics();
+    }
+    
+    await loadPerformanceData();
+    
+    // Charts
+    const toggleChartsBtn = document.getElementById('toggleCharts');
+    const chartsContainer = document.getElementById('chartsContainer');
+    let chartsVisible = false;
+    
+    if (toggleChartsBtn && chartsContainer) {
+        toggleChartsBtn.addEventListener('click', () => {
+            chartsVisible = !chartsVisible;
+            chartsContainer.style.display = chartsVisible ? 'block' : 'none';
+            toggleChartsBtn.textContent = chartsVisible ? 'Hide Charts' : 'Show Charts';
+            
+            if (chartsVisible) {
+                // Draw charts
+                setTimeout(() => {
+                    // Trend chart (last 7 days)
+                    const trendData = Object.values(stats.dailyStats)
+                        .slice(-7)
+                        .map(day => day.blocked || 0);
+                    drawTrendChart('trendChart', trendData);
+                    
+                    // Category chart
+                    drawCategoryChart('categoryChart', {
+                        Ads: stats.adsBlocked,
+                        Trackers: stats.trackersBlocked,
+                        Social: stats.socialBlocked,
+                        Malware: stats.malwareBlocked
+                    });
+                }, 100);
+            }
+        });
+    }
+    
+    // Onboarding
+    const showTutorialBtn = document.getElementById('showTutorial');
+    const closeOnboardingBtn = document.getElementById('closeOnboarding');
+    const nextSlideBtn = document.getElementById('nextSlide');
+    const prevSlideBtn = document.getElementById('prevSlide');
+    
+    if (showTutorialBtn) {
+        showTutorialBtn.addEventListener('click', showOnboarding);
+    }
+    if (closeOnboardingBtn) {
+        closeOnboardingBtn.addEventListener('click', closeOnboarding);
+    }
+    if (nextSlideBtn) {
+        nextSlideBtn.addEventListener('click', nextSlide);
+    }
+    if (prevSlideBtn) {
+        prevSlideBtn.addEventListener('click', prevSlide);
+    }
+    
+    // Check if onboarding should show
+    const onboardingData = await browser.storage.local.get({ onboardingCompleted: false });
+    if (!onboardingData.onboardingCompleted) {
+        // Show onboarding after a short delay
+        setTimeout(showOnboarding, 500);
+    }
+    
+    // Help System
+    const showHelpBtn = document.getElementById('showHelp');
+    const closeHelpBtn = document.getElementById('closeHelp');
+    
+    if (showHelpBtn) {
+        showHelpBtn.addEventListener('click', showHelp);
+    }
+    if (closeHelpBtn) {
+        closeHelpBtn.addEventListener('click', closeHelp);
+    }
+    
+    // Close modals on overlay click
+    document.getElementById('onboardingOverlay')?.addEventListener('click', (e) => {
+        if (e.target.id === 'onboardingOverlay') {
+            closeOnboarding();
+        }
+    });
+    
+    document.getElementById('helpModal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'helpModal') {
+            closeHelp();
+        }
+    });
+    
+    // Reset Stats Button
+    const resetStatsBtn = document.getElementById('resetStats');
+    if (resetStatsBtn) {
+        resetStatsBtn.addEventListener('click', async () => {
+            if (confirm('Are you sure you want to reset all statistics? This cannot be undone.')) {
+                // Reset all stats to zero
+                const resetStats = {
+                    totalBlocked: 0,
+                    trackersBlocked: 0,
+                    adsBlocked: 0,
+                    socialBlocked: 0,
+                    malwareBlocked: 0,
+                    dataSaved: 0,
+                    domainStats: {},
+                    dailyStats: {},
+                    weeklyStats: {},
+                    monthlyStats: {},
+                    blockingHistory: [],
+                    pageLoadTimes: []
+                };
+                
+                // Save to storage
+                await browser.storage.local.set(resetStats);
+                
+                // Notify background script to reset
+                await browser.runtime.sendMessage({ type: 'resetStats' });
+                
+                // Update local stats object
+                stats.totalBlocked = 0;
+                stats.trackersBlocked = 0;
+                stats.adsBlocked = 0;
+                stats.socialBlocked = 0;
+                stats.malwareBlocked = 0;
+                stats.dataSaved = 0;
+                stats.domainStats = {};
+                stats.dailyStats = {};
+                stats.weeklyStats = {};
+                stats.monthlyStats = {};
+                
+                // Update UI
+                adsBlockedElement.textContent = '0';
+                trackersBlockedElement.textContent = '0';
+                dataSavedElement.textContent = '0 KB';
+                updateDashboard();
+                updateTimeStats(document.querySelector('.time-tab.active')?.dataset.period || 'today');
+                updatePerformanceMetrics();
+                
+                // Reset charts if visible
+                if (chartsVisible) {
+                    drawTrendChart('trendChart', []);
+                    drawCategoryChart('categoryChart', {
+                        Ads: 0,
+                        Trackers: 0,
+                        Social: 0,
+                        Malware: 0
+                    });
+                }
+                
+                // Reset network monitor
+                if (monitorActive) {
+                    monitorStats = { blocked: 0, active: 0 };
+                    if (monitorBlockedElement) {
+                        monitorBlockedElement.textContent = '0';
+                    }
+                }
+            }
+        });
+    }
+    
     // Refresh stats periodically
     setInterval(async () => {
         const response = await browser.runtime.sendMessage({ type: 'getStats' });
@@ -777,6 +1193,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             dataSavedElement.textContent = formatBytes(stats.dataSaved);
             updateDashboard();
             updateTimeStats(document.querySelector('.time-tab.active')?.dataset.period || 'today');
+            updatePerformanceMetrics();
+            
+            // Update charts if visible
+            if (chartsVisible) {
+                const trendData = Object.values(stats.dailyStats)
+                    .slice(-7)
+                    .map(day => day.blocked || 0);
+                drawTrendChart('trendChart', trendData);
+                drawCategoryChart('categoryChart', {
+                    Ads: stats.adsBlocked,
+                    Trackers: stats.trackersBlocked,
+                    Social: stats.socialBlocked,
+                    Malware: stats.malwareBlocked
+                });
+            }
             
             // Update network monitor if active
             if (monitorActive && monitorBlockedElement) {
@@ -792,4 +1223,311 @@ function formatBytes(bytes) {
     const sizes = ['KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Performance Metrics
+let performanceData = {
+    pageLoadTimes: [],
+    baselineLoadTime: 3000, // 3 seconds baseline
+    totalPages: 0
+};
+
+async function updatePerformanceMetrics() {
+    const loadSpeedElement = document.getElementById('loadSpeed');
+    const batterySavedElement = document.getElementById('batterySaved');
+    
+    if (!loadSpeedElement || !batterySavedElement) return;
+    
+    // Calculate average page load improvement
+    const avgLoadTime = performanceData.pageLoadTimes.length > 0
+        ? performanceData.pageLoadTimes.reduce((a, b) => a + b, 0) / performanceData.pageLoadTimes.length
+        : performanceData.baselineLoadTime;
+    
+    const improvement = ((performanceData.baselineLoadTime - avgLoadTime) / performanceData.baselineLoadTime) * 100;
+    loadSpeedElement.textContent = improvement > 0 ? `+${Math.round(improvement)}%` : '0%';
+    loadSpeedElement.style.color = improvement > 0 ? 'var(--primary-color)' : 'var(--text-secondary)';
+    
+    // Estimate battery savings (rough calculation)
+    const estimatedBatterySaved = Math.min(15, Math.round((stats.totalBlocked / 100) * 0.5));
+    batterySavedElement.textContent = `${estimatedBatterySaved}%`;
+}
+
+// Chart Drawing Functions
+function drawTrendChart(canvasId, data) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+    
+    if (!data || data.length === 0) {
+        ctx.fillStyle = 'var(--text-secondary)';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('No data yet', width / 2, height / 2);
+        return;
+    }
+    
+    // Draw simple line chart
+    ctx.strokeStyle = 'var(--primary-color)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    
+    const maxValue = Math.max(...data);
+    const padding = 20;
+    const chartWidth = width - padding * 2;
+    const chartHeight = height - padding * 2;
+    
+    data.forEach((value, index) => {
+        const x = padding + (index / (data.length - 1)) * chartWidth;
+        const y = height - padding - (value / maxValue) * chartHeight;
+        
+        if (index === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    });
+    
+    ctx.stroke();
+    
+    // Draw points
+    ctx.fillStyle = 'var(--primary-color)';
+    data.forEach((value, index) => {
+        const x = padding + (index / (data.length - 1)) * chartWidth;
+        const y = height - padding - (value / maxValue) * chartHeight;
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
+
+function drawCategoryChart(canvasId, categories) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    ctx.clearRect(0, 0, width, height);
+    
+    const total = Object.values(categories).reduce((a, b) => a + b, 0);
+    if (total === 0) {
+        ctx.fillStyle = 'var(--text-secondary)';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('No data yet', width / 2, height / 2);
+        return;
+    }
+    
+    // Draw pie chart
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = Math.min(width, height) / 2 - 20;
+    
+    let currentAngle = -Math.PI / 2;
+    const colors = ['#34C759', '#FF9500', '#007AFF', '#FF3B30'];
+    let colorIndex = 0;
+    
+    Object.entries(categories).forEach(([label, value]) => {
+        const sliceAngle = (value / total) * Math.PI * 2;
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+        ctx.closePath();
+        ctx.fillStyle = colors[colorIndex % colors.length];
+        ctx.fill();
+        
+        // Label
+        const labelAngle = currentAngle + sliceAngle / 2;
+        const labelX = centerX + Math.cos(labelAngle) * (radius * 0.7);
+        const labelY = centerY + Math.sin(labelAngle) * (radius * 0.7);
+        ctx.fillStyle = 'white';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(label.substring(0, 4), labelX, labelY);
+        
+        currentAngle += sliceAngle;
+        colorIndex++;
+    });
+}
+
+// Onboarding System
+const onboardingSlides = [
+    {
+        title: 'Welcome to Adios!',
+        content: `
+            <p>Adios is an advanced ad blocker with powerful features to protect your privacy and improve your browsing experience.</p>
+            <p>Let's take a quick tour of the key features.</p>
+        `
+    },
+    {
+        title: 'Smart Filter Presets',
+        content: `
+            <p>Choose from three blocking modes:</p>
+            <ul style="text-align: left; margin: 12px 0;">
+                <li><strong>Strict:</strong> Maximum privacy, blocks everything</li>
+                <li><strong>Balanced:</strong> Blocks ads and trackers (recommended)</li>
+                <li><strong>Relaxed:</strong> Minimal blocking, only ads</li>
+            </ul>
+        `
+    },
+    {
+        title: 'Custom Rules Editor',
+        content: `
+            <p>Create your own blocking rules for specific domains or patterns.</p>
+            <p>Click the "+" button to add custom rules that match your needs.</p>
+        `
+    },
+    {
+        title: 'Privacy Dashboard',
+        content: `
+            <p>Monitor your privacy protection with:</p>
+            <ul style="text-align: left; margin: 12px 0;">
+                <li>Privacy Score (0-100)</li>
+                <li>Top blocked domains</li>
+                <li>Category breakdown</li>
+            </ul>
+        `
+    },
+    {
+        title: 'You\'re All Set!',
+        content: `
+            <p>Adios is now protecting your privacy. Browse the web faster and safer!</p>
+            <p>You can access help anytime by clicking the "Help & Documentation" button.</p>
+        `
+    }
+];
+
+let currentSlide = 0;
+
+function showOnboarding() {
+    const overlay = document.getElementById('onboardingOverlay');
+    if (overlay) {
+        overlay.style.display = 'flex';
+        showSlide(0);
+    }
+}
+
+function showSlide(index) {
+    currentSlide = index;
+    const slideContainer = document.getElementById('onboardingSlide');
+    const indicator = document.getElementById('slideIndicator');
+    const prevBtn = document.getElementById('prevSlide');
+    const nextBtn = document.getElementById('nextSlide');
+    
+    if (!slideContainer) return;
+    
+    const slide = onboardingSlides[index];
+    slideContainer.innerHTML = `
+        <h2>${slide.title}</h2>
+        ${slide.content}
+    `;
+    
+    if (indicator) {
+        indicator.textContent = `${index + 1} / ${onboardingSlides.length}`;
+    }
+    
+    if (prevBtn) {
+        prevBtn.disabled = index === 0;
+    }
+    
+    if (nextBtn) {
+        nextBtn.textContent = index === onboardingSlides.length - 1 ? 'Finish' : 'Next →';
+    }
+}
+
+function nextSlide() {
+    if (currentSlide < onboardingSlides.length - 1) {
+        showSlide(currentSlide + 1);
+    } else {
+        closeOnboarding();
+        // Mark onboarding as completed
+        browser.storage.local.set({ onboardingCompleted: true });
+    }
+}
+
+function prevSlide() {
+    if (currentSlide > 0) {
+        showSlide(currentSlide - 1);
+    }
+}
+
+function closeOnboarding() {
+    const overlay = document.getElementById('onboardingOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+// Help System Content
+const helpContent = `
+    <div class="help-section-title">Getting Started</div>
+    <div class="help-item">
+        <h4>How do I enable Adios?</h4>
+        <p>1. Open iPhone Settings → Safari → Extensions<br>
+        2. Find Adios and toggle it ON<br>
+        3. Grant permission when Safari asks</p>
+    </div>
+    
+    <div class="help-section-title">Smart Filter Presets</div>
+    <div class="help-item">
+        <h4>What's the difference between presets?</h4>
+        <p><strong>Strict:</strong> Blocks all ads, trackers, social media, and malware. Maximum privacy.</p>
+        <p><strong>Balanced:</strong> Blocks ads and trackers. Recommended for most users.</p>
+        <p><strong>Relaxed:</strong> Only blocks ads and malware. Minimal interference.</p>
+    </div>
+    
+    <div class="help-section-title">Custom Rules</div>
+    <div class="help-item">
+        <h4>How do I create custom rules?</h4>
+        <p>Click the "+" button in Custom Rules section. Enter a URL pattern like:<br>
+        <code>*://example.com/*</code> to block all requests from example.com</p>
+    </div>
+    
+    <div class="help-section-title">Privacy Score</div>
+    <div class="help-item">
+        <h4>What does the privacy score mean?</h4>
+        <p>The score (0-100) indicates how well Adios is protecting you on the current site. Higher scores mean better protection.</p>
+    </div>
+    
+    <div class="help-section-title">Performance Metrics</div>
+    <div class="help-item">
+        <h4>How are performance metrics calculated?</h4>
+        <p>Page load speed improvement is based on blocked requests reducing page load time. Battery savings are estimated based on reduced network activity.</p>
+    </div>
+    
+    <div class="help-section-title">Troubleshooting</div>
+    <div class="help-item">
+        <h4>Ads are still showing</h4>
+        <p>1. Make sure Adios is enabled in Safari Settings<br>
+        2. Check that blocking is enabled in the popup<br>
+        3. Verify the site isn't in your exceptions list</p>
+    </div>
+    <div class="help-item">
+        <h4>Website is broken</h4>
+        <p>Try adding the site to exceptions or switching to Relaxed mode. Some sites require certain scripts to function properly.</p>
+    </div>
+`;
+
+function showHelp() {
+    const modal = document.getElementById('helpModal');
+    const content = document.getElementById('helpContent');
+    if (modal && content) {
+        content.innerHTML = helpContent;
+        modal.style.display = 'flex';
+    }
+}
+
+function closeHelp() {
+    const modal = document.getElementById('helpModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
 }

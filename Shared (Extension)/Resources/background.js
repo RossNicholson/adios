@@ -225,10 +225,49 @@ browser.webRequest.onBeforeRequest.addListener(
                 return { cancel: false };
             }
 
-            // Determine category and check if should block
+            // Determine category (needed for stats and rules)
             const category = getBlockCategory(url);
-            if (!shouldBlockCategory(category)) {
-                return { cancel: false };
+            
+            // Check custom rules first (highest priority)
+            const customRulesData = await browser.storage.local.get({ customRules: [] });
+            const customRules = customRulesData.customRules || [];
+            const matchesCustomRule = customRules.some(rule => {
+                try {
+                    const regex = new RegExp('^' + rule.pattern.replace(/\*/g, '.*').replace(/\//g, '\\/') + '$');
+                    return regex.test(details.url);
+                } catch (e) {
+                    return false;
+                }
+            });
+            
+            if (matchesCustomRule) {
+                // Custom rule matches, proceed with blocking
+            } else {
+                // Check site-specific rules (they override global settings)
+                const siteRulesData = await browser.storage.local.get({ siteSpecificRules: [] });
+                const siteRules = siteRulesData.siteSpecificRules || [];
+                const matchingSiteRule = siteRules.find(rule => 
+                    domain.includes(rule.domain) || originDomain.includes(rule.domain)
+                );
+                
+                if (matchingSiteRule) {
+                    // Apply site-specific rule
+                    let shouldBlock = false;
+                    switch(category) {
+                        case 'ad': shouldBlock = matchingSiteRule.blockAds; break;
+                        case 'tracker': shouldBlock = matchingSiteRule.blockTrackers; break;
+                        case 'social': shouldBlock = matchingSiteRule.blockSocial; break;
+                        case 'malware': shouldBlock = matchingSiteRule.blockMalware; break;
+                    }
+                    if (!shouldBlock) {
+                        return { cancel: false };
+                    }
+                } else {
+                    // Use global settings
+                    if (!shouldBlockCategory(category)) {
+                        return { cancel: false };
+                    }
+                }
             }
 
             // Update statistics
@@ -395,6 +434,61 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 settings.filterLists = request.filterLists || settings.filterLists;
                 browser.storage.local.set({ filterLists: settings.filterLists });
                 return Promise.resolve();
+            
+            case "pageLoadTime":
+                // Track page load times for performance metrics
+                const loadTimeData = await browser.storage.local.get({ pageLoadTimes: [] });
+                let loadTimes = loadTimeData.pageLoadTimes || [];
+                loadTimes.push({
+                    time: request.loadTime,
+                    url: request.url,
+                    timestamp: Date.now()
+                });
+                // Keep only last 100 measurements
+                if (loadTimes.length > 100) {
+                    loadTimes = loadTimes.slice(-100);
+                }
+                browser.storage.local.set({ pageLoadTimes: loadTimes });
+                return Promise.resolve();
+            
+            case "siteRulesUpdated":
+                // Update site-specific rules
+                browser.storage.local.set({ siteSpecificRules: request.rules || [] });
+                return Promise.resolve();
+            
+            case "scheduleUpdated":
+                // Update scheduled blocking configuration
+                browser.storage.local.set({ scheduleConfig: request.schedule });
+                return Promise.resolve();
+            
+            case "resetStats":
+                // Reset all statistics
+                stats.totalBlocked = 0;
+                stats.trackersBlocked = 0;
+                stats.adsBlocked = 0;
+                stats.socialBlocked = 0;
+                stats.malwareBlocked = 0;
+                stats.dataSaved = 0;
+                stats.domainStats = {};
+                stats.dailyStats = {};
+                stats.weeklyStats = {};
+                stats.monthlyStats = {};
+                stats.blockingHistory = [];
+                browser.storage.local.set({
+                    totalBlocked: 0,
+                    trackersBlocked: 0,
+                    adsBlocked: 0,
+                    socialBlocked: 0,
+                    malwareBlocked: 0,
+                    dataSaved: 0,
+                    domainStats: {},
+                    dailyStats: {},
+                    weeklyStats: {},
+                    monthlyStats: {},
+                    blockingHistory: [],
+                    pageLoadTimes: []
+                });
+                return Promise.resolve({ success: true });
         }
     } catch (error) {
         console.error('Error in message handler:', error);
