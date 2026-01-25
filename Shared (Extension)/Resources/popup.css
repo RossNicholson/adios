@@ -20,18 +20,29 @@
     }
 }
 
-body {
+html, body {
     width: 420px;
-    max-height: 700px;
+    height: 100%;
     margin: 0;
+    padding: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: var(--bg-color);
     color: var(--text-color);
     overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+body {
+    max-height: 700px;
+    min-height: 400px;
 }
 
 .container {
     padding: 16px;
+    min-height: 0;
+    overflow: visible;
+    height: auto;
 }
 
 .header {
@@ -1032,6 +1043,7 @@ input:checked + .slider:before {
     align-items: center;
     justify-content: center;
     padding: 20px;
+    overflow-y: auto;
 }
 
 .onboarding-content {
@@ -1123,6 +1135,7 @@ input:checked + .slider:before {
     align-items: center;
     justify-content: center;
     padding: 20px;
+    overflow-y: auto;
 }
 
 .help-modal-content {
@@ -1270,6 +1283,181 @@ input:checked + .slider:before {
     color: var(--primary-color);
     cursor: pointer;
     font-size: 11px;
+}
+
+/* Debug/Troubleshooting Section */
+.debug-section {
+    padding: 12px;
+    background: var(--bg-secondary);
+    border: 2px solid var(--primary-color);
+    border-radius: 12px;
+    margin-bottom: 16px;
+    margin-top: 20px;
+    display: block !important;
+    position: relative;
+}
+
+.debug-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.debug-header h3 {
+    font-size: 15px;
+    margin: 0;
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.debug-toggle {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.debug-toggle:hover {
+    background: var(--bg-secondary);
+}
+
+.debug-toggle.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.debug-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.debug-item {
+    padding: 8px;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.debug-item strong {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-color);
+}
+
+.debug-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin: 4px 0 0 0;
+    font-style: italic;
+}
+
+.debug-steps {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin: 8px 0 0 0;
+    padding-left: 20px;
+    line-height: 1.6;
+}
+
+.debug-steps li {
+    margin: 4px 0;
+}
+
+.requests-list {
+    max-height: 150px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-top: 8px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.request-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    font-size: 11px;
+    border-left: 3px solid;
+}
+
+.request-entry.blocked {
+    background: rgba(255, 59, 48, 0.1);
+    border-left-color: var(--danger-color);
+}
+
+.request-entry.allowed {
+    background: rgba(52, 199, 89, 0.1);
+    border-left-color: var(--primary-color);
+}
+
+.request-status {
+    font-weight: 600;
+    font-size: 10px;
+}
+
+.request-url {
+    color: var(--text-secondary);
+    word-break: break-all;
+    font-family: monospace;
+}
+
+.request-time {
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+.test-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--primary-color);
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.test-btn:hover {
+    opacity: 0.9;
+}
+
+.test-result {
+    margin-top: 8px;
+    padding: 8px;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+.test-results {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.test-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px;
+    font-size: 11px;
+}
+
+.test-item.blocked {
+    color: var(--danger-color);
+}
+
+.test-item.not-blocked {
+    color: #ff9500;
 }
 
 /* Site-Specific Rules */

@@ -1,3 +1,14 @@
+// Browser API polyfill for compatibility
+if (typeof browser === 'undefined') {
+    window.browser = typeof chrome !== 'undefined' ? chrome : {};
+}
+
+// Store observers and timers for cleanup
+let mutationObserver = null;
+let bodyObserver = null;
+let urlCheckInterval = null;
+let debounceTimer = null;
+
 // Function to remove ad elements
 function removeAds(selectors) {
     if (!selectors || selectors.length === 0) return;
@@ -8,6 +19,38 @@ function removeAds(selectors) {
             const elements = document.querySelectorAll(selector);
             elements.forEach(element => {
                 try {
+                    // Check if element contains Google Chrome ad text
+                    const text = element.textContent || '';
+                    if (text.includes('Switch to Google Chrome') || 
+                        text.includes('Browse securely with Chrome') ||
+                        (text.includes('Google Chrome') && (text.includes('Switch') || text.includes('Browse securely')))) {
+                        element.remove();
+                        removedCount++;
+                        return;
+                    }
+                    
+                    // Check parent elements for ad indicators
+                    let parent = element.parentElement;
+                    let depth = 0;
+                    while (parent && depth < 3) {
+                        const parentText = parent.textContent || '';
+                        const parentClass = parent.className || '';
+                        const parentId = parent.id || '';
+                        
+                        if (parentText.includes('Switch to Google Chrome') ||
+                            parentText.includes('Browse securely with Chrome') ||
+                            parentClass.includes('ad') ||
+                            parentId.includes('ad') ||
+                            parentClass.includes('banner') ||
+                            parentId.includes('banner')) {
+                            parent.remove();
+                            removedCount++;
+                            return;
+                        }
+                        parent = parent.parentElement;
+                        depth++;
+                    }
+                    
                     element.remove();
                     removedCount++;
                 } catch (e) {
@@ -18,6 +61,31 @@ function removeAds(selectors) {
             // Invalid selector, skip
         }
     });
+    
+    // Also look for Google Chrome ads by text content
+    if (removedCount === 0) {
+        try {
+            const allDivs = document.querySelectorAll('div, a, section, article');
+            allDivs.forEach(el => {
+                const text = el.textContent || '';
+                if ((text.includes('Switch to Google Chrome') || 
+                     text.includes('Browse securely with Chrome')) &&
+                    (el.querySelector('a[href*="chrome"]') || 
+                     el.querySelector('a[href*="google.com/chrome"]') ||
+                     el.className.includes('ad') ||
+                     el.id.includes('ad'))) {
+                    try {
+                        el.remove();
+                        removedCount++;
+                    } catch (e) {
+                        // Element may have already been removed
+                    }
+                }
+            });
+        } catch (e) {
+            // Ignore errors
+        }
+    }
     
     return removedCount;
 }
@@ -173,7 +241,7 @@ function applyAntiFingerprinting() {
 }
 
 // Debounce function to limit how often we process mutations
-let debounceTimer = null;
+// debounceTimer is already declared at the top of the file
 const DEBOUNCE_DELAY = 250; // 250ms debounce
 
 let settings = {
@@ -182,14 +250,108 @@ let settings = {
     antiFingerprint: true
 };
 
-// Load settings
+// Load settings and remove ads immediately
 browser.runtime.sendMessage({ type: 'getAdSelectors' })
     .then(response => {
         if (response && response.settings) {
             settings = { ...settings, ...response.settings };
         }
         if (settings.enabled) {
+            // Remove ads immediately
             removeAds(response?.selectors || []);
+            
+            // Also remove Google ads specifically (including Chrome promotional ads)
+            const googleAdSelectors = [
+                'ins.adsbygoogle',
+                'div[id*="google_ads"]',
+                'div[id*="google-ad"]',
+                'div[class*="adsbygoogle"]',
+                'div[id^="google_ads_iframe"]',
+                'iframe[src*="googlesyndication"]',
+                'iframe[src*="doubleclick"]',
+                'iframe[src*="googleadservices"]',
+                'iframe[src*="pagead2"]',
+                'iframe[src*="google.com/pagead"]',
+                'iframe[src*="google.com/ads"]',
+                'div[data-google-query-id]',
+                'div[data-google-ad]',
+                'div[class*="google-auto-placed"]',
+                'div[id*="google_ads_frame"]',
+                'div[class*="google-ads"]',
+                'div[id*="googleads"]',
+                // Chrome promotional ad selectors
+                'a[href*="chrome.google.com"]',
+                'a[href*="google.com/chrome"]',
+                '[class*="chrome"][class*="ad"]',
+                '[id*="chrome"][id*="ad"]',
+                // Additional Google ad containers
+                'div[class*="ad-container"][id*="google"]',
+                'div[class*="ad-wrapper"][id*="google"]',
+                'section[id*="google"][class*="ad"]',
+                'article[id*="google"][class*="ad"]'
+            ];
+            removeAds(googleAdSelectors);
+            
+            // Aggressively remove Chrome ads and Google ads by text pattern
+            const removeGoogleAdsByText = () => {
+                const allElements = Array.from(document.querySelectorAll('div, a, section, article, aside, span, p'));
+                allElements.forEach(el => {
+                    const text = (el.textContent || '').trim();
+                    const innerHTML = (el.innerHTML || '').toLowerCase();
+                    
+                    // Check for Google Chrome promotional ads
+                    if ((text.includes('Switch to Google Chrome') || 
+                         text.includes('Browse securely with Chrome') ||
+                         text.includes('Download Chrome') ||
+                         text.includes('Get Chrome')) &&
+                        text.length < 500) {
+                        const hasChromeLink = el.querySelector('a[href*="chrome"]') || 
+                                             el.querySelector('a[href*="google.com/chrome"]') ||
+                                             el.closest('a[href*="chrome"]');
+                        const hasButton = el.querySelector('button, [role="button"], [class*="button"]');
+                        
+                        if (hasChromeLink || hasButton || el.tagName === 'A') {
+                            try {
+                                el.style.display = 'none';
+                                el.style.visibility = 'hidden';
+                                el.style.height = '0';
+                                el.style.overflow = 'hidden';
+                                el.remove();
+                            } catch (e) {
+                                // Ignore errors
+                            }
+                        }
+                    }
+                    
+                    // Check for Google Ads by common text patterns
+                    if ((text.includes('AdChoices') || 
+                         text.includes('Advertisement') ||
+                         innerHTML.includes('adsbygoogle') ||
+                         innerHTML.includes('google_ads') ||
+                         innerHTML.includes('doubleclick')) &&
+                        (el.querySelector('iframe[src*="google"]') ||
+                         el.querySelector('iframe[src*="doubleclick"]') ||
+                         el.querySelector('ins.adsbygoogle') ||
+                         el.className.includes('ad') ||
+                         el.id.includes('ad'))) {
+                        try {
+                            el.style.display = 'none';
+                            el.style.visibility = 'hidden';
+                            el.style.height = '0';
+                            el.style.overflow = 'hidden';
+                            el.remove();
+                        } catch (e) {
+                            // Ignore errors
+                        }
+                    }
+                });
+            };
+            
+            // Run immediately and then again after delays to catch dynamically loaded ads
+            removeGoogleAdsByText();
+            setTimeout(removeGoogleAdsByText, 500);
+            setTimeout(removeGoogleAdsByText, 1500);
+            setTimeout(removeGoogleAdsByText, 3000);
         }
         if (settings.cookieConsent) {
             blockCookieConsent();
@@ -200,6 +362,7 @@ browser.runtime.sendMessage({ type: 'getAdSelectors' })
     })
     .catch(error => {
         // Background script may not be available yet
+        console.error('Error loading settings:', error);
     });
 
 function debouncedAdRemoval() {
@@ -215,6 +378,89 @@ function debouncedAdRemoval() {
                 }
                 if (settings.enabled) {
                     removeAds(response?.selectors || []);
+                    
+                    // Also aggressively remove Google ads
+                    const googleAdSelectors = [
+                        'ins.adsbygoogle',
+                        'div[id*="google_ads"]',
+                        'div[id*="google-ad"]',
+                        'div[class*="adsbygoogle"]',
+                        'div[id^="google_ads_iframe"]',
+                        'iframe[src*="googlesyndication"]',
+                        'iframe[src*="doubleclick"]',
+                        'iframe[src*="googleadservices"]',
+                        'iframe[src*="pagead2"]',
+                        'iframe[src*="google.com/pagead"]',
+                        'iframe[src*="google.com/ads"]',
+                        'div[data-google-query-id]',
+                        'div[data-google-ad]',
+                        'div[class*="google-auto-placed"]',
+                        'div[id*="google_ads_frame"]',
+                        'div[class*="google-ads"]',
+                        'div[id*="googleads"]',
+                        'div[class*="ad-container"][id*="google"]',
+                        'div[class*="ad-wrapper"][id*="google"]',
+                        'section[id*="google"][class*="ad"]',
+                        'article[id*="google"][class*="ad"]',
+                        // Chrome promotional ads
+                        'a[href*="chrome.google.com"]',
+                        'a[href*="google.com/chrome"]',
+                        '[class*="chrome"][class*="ad"]',
+                        '[id*="chrome"][id*="ad"]'
+                    ];
+                    removeAds(googleAdSelectors);
+                    
+                    // Also remove by text content - enhanced detection
+                    const removeGoogleAdsByText = () => {
+                        const allElements = Array.from(document.querySelectorAll('div, a, section, article, aside, span, p'));
+                        allElements.forEach(el => {
+                            const text = (el.textContent || '').trim();
+                            const innerHTML = (el.innerHTML || '').toLowerCase();
+                            
+                            // Check for Google Chrome promotional ads
+                            if ((text.includes('Switch to Google Chrome') || 
+                                 text.includes('Browse securely with Chrome') ||
+                                 text.includes('Download Chrome') ||
+                                 text.includes('Get Chrome')) &&
+                                text.length < 500) {
+                                const hasChromeLink = el.querySelector('a[href*="chrome"]') || 
+                                                     el.querySelector('a[href*="google.com/chrome"]') ||
+                                                     el.closest('a[href*="chrome"]');
+                                const hasButton = el.querySelector('button, [role="button"], [class*="button"]');
+                                
+                                if (hasChromeLink || hasButton || el.tagName === 'A') {
+                                    try {
+                                        el.style.display = 'none';
+                                        el.style.visibility = 'hidden';
+                                        el.style.height = '0';
+                                        el.style.overflow = 'hidden';
+                                        el.remove();
+                                    } catch (e) {}
+                                }
+                            }
+                            
+                            // Check for Google Ads by common text patterns
+                            if ((text.includes('AdChoices') || 
+                                 text.includes('Advertisement') ||
+                                 innerHTML.includes('adsbygoogle') ||
+                                 innerHTML.includes('google_ads') ||
+                                 innerHTML.includes('doubleclick')) &&
+                                (el.querySelector('iframe[src*="google"]') ||
+                                 el.querySelector('iframe[src*="doubleclick"]') ||
+                                 el.querySelector('ins.adsbygoogle') ||
+                                 el.className.includes('ad') ||
+                                 el.id.includes('ad'))) {
+                                try {
+                                    el.style.display = 'none';
+                                    el.style.visibility = 'hidden';
+                                    el.style.height = '0';
+                                    el.style.overflow = 'hidden';
+                                    el.remove();
+                                } catch (e) {}
+                            }
+                        });
+                    };
+                    removeGoogleAdsByText();
                 }
                 // Only call cookie consent handler if we haven't already handled it
                 // and limit how often we check (every 2 seconds max)
@@ -224,12 +470,13 @@ function debouncedAdRemoval() {
             })
             .catch(error => {
                 // Background script may not be available
+                console.error('Error in debouncedAdRemoval:', error);
             });
     }, DEBOUNCE_DELAY);
 }
 
 // Create observer for dynamically loaded content with debouncing
-const observer = new MutationObserver((mutations) => {
+mutationObserver = new MutationObserver((mutations) => {
     // Only process if there are actual DOM changes
     const hasRelevantChanges = mutations.some(mutation => 
         mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0
@@ -242,19 +489,22 @@ const observer = new MutationObserver((mutations) => {
 
 // Start observing DOM changes when body is available
 if (document.body) {
-    observer.observe(document.body, {
+    mutationObserver.observe(document.body, {
         childList: true,
         subtree: true
     });
 } else {
     // Wait for body to be available
-    const bodyObserver = new MutationObserver(() => {
-        if (document.body) {
-            observer.observe(document.body, {
+    bodyObserver = new MutationObserver(() => {
+        if (document.body && mutationObserver) {
+            mutationObserver.observe(document.body, {
                 childList: true,
                 subtree: true
             });
-            bodyObserver.disconnect();
+            if (bodyObserver) {
+                bodyObserver.disconnect();
+                bodyObserver = null;
+            }
         }
     });
     bodyObserver.observe(document.documentElement, {
@@ -267,15 +517,19 @@ let currentUrl = window.location.href;
 
 // Monitor for URL changes (SPA navigation)
 const checkUrlChange = () => {
-    if (window.location.href !== currentUrl) {
-        currentUrl = window.location.href;
-        cookieConsentHandled = false;
-        cookieConsentAttempts = 0;
+    try {
+        if (window.location.href !== currentUrl) {
+            currentUrl = window.location.href;
+            cookieConsentHandled = false;
+            cookieConsentAttempts = 0;
+        }
+    } catch (error) {
+        console.error('Error checking URL change:', error);
     }
 };
 
-// Check URL on various events
-setInterval(checkUrlChange, 1000);
+// Check URL on various events (store interval for cleanup)
+urlCheckInterval = setInterval(checkUrlChange, 1000);
 
 // Also reset on popstate (back/forward navigation)
 window.addEventListener('popstate', () => {
@@ -320,4 +574,29 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
             applyAntiFingerprinting();
         }
     }
+    return true; // Keep channel open for async response
 });
+
+// Cleanup function
+function cleanup() {
+    if (mutationObserver) {
+        mutationObserver.disconnect();
+        mutationObserver = null;
+    }
+    if (bodyObserver) {
+        bodyObserver.disconnect();
+        bodyObserver = null;
+    }
+    if (urlCheckInterval) {
+        clearInterval(urlCheckInterval);
+        urlCheckInterval = null;
+    }
+    if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+    }
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', cleanup);
+window.addEventListener('pagehide', cleanup);

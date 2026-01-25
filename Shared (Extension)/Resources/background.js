@@ -1,3 +1,23 @@
+// Browser API polyfill for compatibility
+if (typeof browser === 'undefined') {
+    window.browser = typeof chrome !== 'undefined' ? chrome : {};
+}
+
+// Debug mode - set to true to enable detailed logging
+let DEBUG_MODE = false;
+
+// Enable debug mode from storage
+browser.storage.local.get({ debugMode: false }).then(data => {
+    DEBUG_MODE = data.debugMode || false;
+});
+
+// Debug logging function
+function debugLog(...args) {
+    if (DEBUG_MODE) {
+        console.log('[Adios Debug]', ...args);
+    }
+}
+
 // Common ad network domains and patterns
 const adPatterns = [
     // Google Ads - DoubleClick
@@ -98,13 +118,11 @@ const adPatterns = [
     "*://*.advertising.net/*",
 ];
 
-// Tracker domains
+// Tracker domains (deduplicated)
 const trackerPatterns = [
     // Google Analytics & Tracking
     "*://*.google-analytics.com/*",
     "*://*.analytics.google.com/*",
-    "*://*.googletagmanager.com/*",
-    "*://*.google-analytics.com/*",
     "*://*.googletagmanager.com/*",
     "*://*.googleadservices.com/*",
     
@@ -306,6 +324,65 @@ function shouldBlockCategory(category) {
     }
 }
 
+// Helper function to trim large stats/history objects
+function trimStatsIfNeeded() {
+    // Trim blocking history to last 100 entries
+    if (stats.blockingHistory && stats.blockingHistory.length > 100) {
+        stats.blockingHistory = stats.blockingHistory.slice(-100);
+    }
+    
+    // Trim daily stats to last 90 days
+    if (stats.dailyStats) {
+        const now = new Date();
+        const cutoffDate = new Date(now.setDate(now.getDate() - 90));
+        const cutoff = cutoffDate.toISOString().split('T')[0];
+        
+        Object.keys(stats.dailyStats).forEach(date => {
+            if (date < cutoff) {
+                delete stats.dailyStats[date];
+            }
+        });
+    }
+    
+    // Trim weekly stats to last 52 weeks
+    if (stats.weeklyStats) {
+        const keys = Object.keys(stats.weeklyStats).sort();
+        if (keys.length > 52) {
+            keys.slice(0, keys.length - 52).forEach(key => {
+                delete stats.weeklyStats[key];
+            });
+        }
+    }
+    
+    // Trim monthly stats to last 24 months
+    if (stats.monthlyStats) {
+        const keys = Object.keys(stats.monthlyStats).sort();
+        if (keys.length > 24) {
+            keys.slice(0, keys.length - 24).forEach(key => {
+                delete stats.monthlyStats[key];
+            });
+        }
+    }
+    
+    // Trim domain stats to top 1000 domains
+    if (stats.domainStats) {
+        const entries = Object.entries(stats.domainStats);
+        if (entries.length > 1000) {
+            entries.sort((a, b) => b[1] - a[1]);
+            const top1000 = entries.slice(0, 1000);
+            stats.domainStats = Object.fromEntries(top1000);
+        }
+    }
+    
+    // Trim page load times to last 100 measurements
+    browser.storage.local.get({ pageLoadTimes: [] }).then(data => {
+        const loadTimes = data.pageLoadTimes || [];
+        if (loadTimes.length > 100) {
+            browser.storage.local.set({ pageLoadTimes: loadTimes.slice(-100) });
+        }
+    });
+}
+
 // Helper function to update time-based stats
 function updateTimeStats(category, size) {
     const now = new Date();
@@ -329,6 +406,11 @@ function updateTimeStats(category, size) {
     stats.weeklyStats[weekStart].dataSaved += size;
     stats.monthlyStats[monthStart].blocked++;
     stats.monthlyStats[monthStart].dataSaved += size;
+    
+    // Periodically trim stats to prevent unbounded growth
+    if (stats.totalBlocked % 1000 === 0) {
+        trimStatsIfNeeded();
+    }
 }
 
 // Block requests - use a broader pattern to catch all requests, then filter in the handler
@@ -336,13 +418,18 @@ function updateTimeStats(category, size) {
 const allPatterns = ["<all_urls>"];
 
 browser.webRequest.onBeforeRequest.addListener(
-    function(details) {
-        if (!settings.enabled) return { cancel: false };
+    async function(details) {
+        if (!settings.enabled) {
+            debugLog('Blocking disabled, allowing:', details.url);
+            return { cancel: false };
+        }
         
         try {
             const url = new URL(details.url);
             const domain = url.hostname.toLowerCase();
             const urlString = url.href.toLowerCase();
+            
+            debugLog('Checking URL:', details.url, 'Domain:', domain);
             
             // Don't block if URL contains cookie-related paths (unless cookie consent is enabled)
             if (!settings.cookieConsent && (url.pathname.toLowerCase().includes('cookie') || 
@@ -358,36 +445,161 @@ browser.webRequest.onBeforeRequest.addListener(
             if (settings.exceptions && settings.exceptions.length > 0 &&
                 (settings.exceptions.includes(domain) || 
                  settings.exceptions.includes(originDomain))) {
+                debugLog('URL in exceptions, allowing:', details.url);
                 return { cancel: false };
             }
 
             // Check if this is a Google ad/tracking domain first (most common case)
+            // Expanded detection for Google ads - including direct google.com ad serving
             const isGoogleAd = domain.includes('doubleclick') || 
                               domain.includes('googleadservices') || 
                               domain.includes('googlesyndication') ||
                               domain.includes('googletagservices') ||
-                              domain.includes('adservice.google') ||
-                              urlString.includes('/pagead/') ||
-                              urlString.includes('/ads/') ||
-                              urlString.includes('/adsense/') ||
-                              urlString.includes('/afd/') ||
-                              urlString.includes('/afs/') ||
-                              domain.includes('google-analytics') ||
                               domain.includes('googletagmanager') ||
-                              domain.includes('analytics.google');
+                              domain.includes('adservice.google') ||
+                              domain.includes('google-analytics') ||
+                              domain.includes('analytics.google') ||
+                              domain.includes('googleads') ||
+                              domain.includes('googlead') ||
+                              // Check for Google.com ad paths (even on main domain)
+                              (domain.includes('google.com') && (
+                                  urlString.includes('/pagead/') ||
+                                  urlString.includes('/ads/') ||
+                                  urlString.includes('/adsense/') ||
+                                  urlString.includes('/afd/') ||
+                                  urlString.includes('/afs/') ||
+                                  urlString.includes('/pagead2') ||
+                                  urlString.includes('/adsid/') ||
+                                  urlString.includes('/adx/') ||
+                                  urlString.includes('/ad/') ||
+                                  urlString.includes('googlead') ||
+                                  urlString.includes('googlesyndication') ||
+                                  urlString.includes('adsbygoogle') ||
+                                  urlString.includes('adservice') ||
+                                  urlString.includes('adsystem') ||
+                                  urlString.includes('adserver') ||
+                                  urlString.includes('advertising')
+                              )) ||
+                              // Check URL patterns regardless of domain
+                              urlString.includes('googleads') ||
+                              urlString.includes('googlesyndication') ||
+                              urlString.includes('doubleclick') ||
+                              urlString.includes('googleadservices') ||
+                              urlString.includes('pagead2') ||
+                              urlString.includes('adsbygoogle') ||
+                              urlString.includes('google-analytics') ||
+                              urlString.includes('googletagmanager') ||
+                              urlString.includes('adservice.google') ||
+                              urlString.includes('googlead') ||
+                              // Check for Google ad query parameters
+                              urlString.includes('google_ad') ||
+                              urlString.includes('googlead=') ||
+                              urlString.includes('adsbygoogle=');
+            
+            if (isGoogleAd) {
+                debugLog('Google ad detected:', details.url);
+            }
             
             // Determine category (needed for stats and rules)
             const category = getBlockCategory(url);
             
-            // If it's a Google ad/tracker and blocking is enabled, block it
+            // If it's a Google ad/tracker and blocking is enabled, block it immediately
             if (isGoogleAd) {
-                if (category === 'tracker' && !settings.blockTrackers) {
+                // Determine category for Google ads
+                let googleCategory = category;
+                if (!googleCategory || googleCategory === 'ad') {
+                    // Check if it's actually a tracker
+                    if (domain.includes('analytics') || 
+                        domain.includes('googletagmanager') || 
+                        domain.includes('google-analytics') ||
+                        urlString.includes('analytics') ||
+                        urlString.includes('gtag') ||
+                        urlString.includes('gtm')) {
+                        googleCategory = 'tracker';
+                    } else {
+                        googleCategory = 'ad';
+                    }
+                }
+                
+                // Check if blocking is enabled for this category
+                if (googleCategory === 'tracker' && !settings.blockTrackers) {
                     return { cancel: false };
                 }
-                if (category === 'ad' && !settings.blockAds) {
+                if (googleCategory === 'ad' && !settings.blockAds) {
                     return { cancel: false };
                 }
-                // Proceed to block
+                
+                // Update category for stats
+                const finalCategory = googleCategory;
+                
+                // Update statistics immediately
+                stats.totalBlocked++;
+                const dataSize = estimateRequestSize(details);
+                stats.dataSaved += dataSize;
+                
+                // Update category-specific stats
+                switch(finalCategory) {
+                    case 'ad':
+                        stats.adsBlocked++;
+                        break;
+                    case 'tracker':
+                        stats.trackersBlocked++;
+                        break;
+                }
+                
+                // Update domain stats
+                stats.domainStats[domain] = (stats.domainStats[domain] || 0) + 1;
+                
+                // Update site-specific stats
+                let tabDomain = '';
+                if (details.originUrl) {
+                    try {
+                        tabDomain = new URL(details.originUrl).hostname;
+                    } catch (e) {
+                        tabDomain = domain;
+                    }
+                } else if (details.documentUrl) {
+                    try {
+                        tabDomain = new URL(details.documentUrl).hostname;
+                    } catch (e) {
+                        tabDomain = domain;
+                    }
+                } else {
+                    tabDomain = domain;
+                }
+                
+                stats.siteStats[tabDomain] = (stats.siteStats[tabDomain] || 0) + 1;
+                
+                // Update time-based stats
+                updateTimeStats(finalCategory, dataSize);
+                
+                // Save stats asynchronously (don't await to avoid blocking)
+                browser.storage.local.set({
+                    totalBlocked: stats.totalBlocked,
+                    trackersBlocked: stats.trackersBlocked,
+                    adsBlocked: stats.adsBlocked,
+                    socialBlocked: stats.socialBlocked,
+                    malwareBlocked: stats.malwareBlocked,
+                    dataSaved: stats.dataSaved,
+                    domainStats: stats.domainStats,
+                    dailyStats: stats.dailyStats,
+                    weeklyStats: stats.weeklyStats,
+                    monthlyStats: stats.monthlyStats,
+                    [`site:${tabDomain}`]: stats.siteStats[tabDomain]
+                }).catch(err => console.error('Error saving stats:', err));
+                
+                // Block immediately for Google ads
+                debugLog('BLOCKING Google ad:', details.url, 'Category:', googleCategory);
+                
+                // Log to popup for troubleshooting
+                browser.runtime.sendMessage({
+                    type: 'requestLog',
+                    url: details.url,
+                    domain: domain,
+                    blocked: true
+                }).catch(() => {}); // Ignore errors if popup not open
+                
+                return { cancel: true };
             } else {
                 // For non-Google domains, check if they match our patterns
                 const matchesPattern = adPatterns.some(pattern => {
@@ -421,6 +633,7 @@ browser.webRequest.onBeforeRequest.addListener(
                 });
                 
                 if (!matchesPattern) {
+                    debugLog('No pattern match, allowing:', details.url);
                     return { cancel: false };
                 }
             }
@@ -524,10 +737,13 @@ browser.webRequest.onBeforeRequest.addListener(
                 });
             }
             
-            // Keep only last 100 entries
+            // Keep only last 100 entries (trimming already handled in trimStatsIfNeeded)
             if (blockingHistory.length > 100) {
                 blockingHistory = blockingHistory.slice(-100);
             }
+            
+            // Trim stats periodically
+            trimStatsIfNeeded();
             
             // Save stats and history
             browser.storage.local.set({
@@ -545,9 +761,22 @@ browser.webRequest.onBeforeRequest.addListener(
                 [`site:${tabDomain}`]: stats.siteStats[tabDomain]
             });
 
+            // Log to popup for troubleshooting (even if not blocked)
+            if (DEBUG_MODE) {
+                browser.runtime.sendMessage({
+                    type: 'requestLog',
+                    url: details.url,
+                    domain: domain,
+                    blocked: true,
+                    category: category
+                }).catch(() => {}); // Ignore errors if popup not open
+            }
+            
             return { cancel: true };
         } catch (error) {
             console.error('Error in onBeforeRequest:', error);
+            debugLog('Error processing request:', details.url, error);
+            // Log error but don't block - fail open to avoid breaking user experience
             return { cancel: false };
         }
     },
@@ -557,140 +786,179 @@ browser.webRequest.onBeforeRequest.addListener(
 
 // Handle messages from popup and options
 browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    try {
-        switch (request.type) {
-            case "getAdSelectors":
-                return Promise.resolve({ 
-                    selectors: settings.enabled ? adSelectors : [],
-                    settings: {
-                        enabled: settings.enabled,
-                        cookieConsent: settings.cookieConsent,
-                        antiFingerprint: settings.antiFingerprint
-                    }
-                });
+    // Handle async responses properly
+    (async () => {
+        try {
+            let response;
             
-            case "toggleBlocking":
-                settings.enabled = request.enabled;
-                browser.storage.local.set({ enabled: settings.enabled });
-                return Promise.resolve();
-            
-            case "settingsUpdated":
-                settings = { ...settings, ...request.settings };
-                browser.storage.local.set({ settings: settings });
-                return Promise.resolve();
-            
-            case "exceptionsUpdated":
-                settings.exceptions = request.exceptions || [];
-                browser.storage.local.set({ exceptions: settings.exceptions });
-                return Promise.resolve();
+            switch (request.type) {
+                case "getAdSelectors":
+                    response = { 
+                        selectors: settings.enabled ? adSelectors : [],
+                        settings: {
+                            enabled: settings.enabled,
+                            cookieConsent: settings.cookieConsent,
+                            antiFingerprint: settings.antiFingerprint
+                        }
+                    };
+                    break;
                 
-            case "getStats":
-                return Promise.resolve({
-                    totalBlocked: stats.totalBlocked,
-                    trackersBlocked: stats.trackersBlocked,
-                    adsBlocked: stats.adsBlocked,
-                    socialBlocked: stats.socialBlocked,
-                    malwareBlocked: stats.malwareBlocked,
-                    dataSaved: stats.dataSaved,
-                    siteStats: stats.siteStats,
-                    domainStats: stats.domainStats,
-                    dailyStats: stats.dailyStats,
-                    weeklyStats: stats.weeklyStats,
-                    monthlyStats: stats.monthlyStats
-                });
+                case "toggleBlocking":
+                    settings.enabled = request.enabled;
+                    await browser.storage.local.set({ enabled: settings.enabled });
+                    response = { success: true };
+                    break;
+                
+                case "settingsUpdated":
+                    settings = { ...settings, ...request.settings };
+                    await browser.storage.local.set({ settings: settings });
+                    response = { success: true };
+                    break;
+                
+                case "exceptionsUpdated":
+                    settings.exceptions = request.exceptions || [];
+                    await browser.storage.local.set({ exceptions: settings.exceptions });
+                    response = { success: true };
+                    break;
+                    
+                case "getStats":
+                    // Trim stats before returning to prevent unbounded growth
+                    trimStatsIfNeeded();
+                    response = {
+                        totalBlocked: stats.totalBlocked,
+                        trackersBlocked: stats.trackersBlocked,
+                        adsBlocked: stats.adsBlocked,
+                        socialBlocked: stats.socialBlocked,
+                        malwareBlocked: stats.malwareBlocked,
+                        dataSaved: stats.dataSaved,
+                        siteStats: stats.siteStats,
+                        domainStats: stats.domainStats,
+                        dailyStats: stats.dailyStats,
+                        weeklyStats: stats.weeklyStats,
+                        monthlyStats: stats.monthlyStats
+                    };
+                    break;
+                
+                case "getTopDomain":
+                    const topDomain = Object.entries(stats.domainStats || {})
+                        .sort((a, b) => b[1] - a[1])[0];
+                    response = topDomain ? { domain: topDomain[0], count: topDomain[1] } : null;
+                    break;
+                
+                case "updateCategorySettings":
+                    if (request.blockAds !== undefined) settings.blockAds = request.blockAds;
+                    if (request.blockTrackers !== undefined) settings.blockTrackers = request.blockTrackers;
+                    if (request.blockSocial !== undefined) settings.blockSocial = request.blockSocial;
+                    if (request.blockMalware !== undefined) settings.blockMalware = request.blockMalware;
+                    if (request.cookieConsent !== undefined) settings.cookieConsent = request.cookieConsent;
+                    if (request.antiFingerprint !== undefined) settings.antiFingerprint = request.antiFingerprint;
+                    await browser.storage.local.set({ settings: settings });
+                    response = { success: true };
+                    break;
             
-            case "getTopDomain":
-                const topDomain = Object.entries(stats.domainStats)
-                    .sort((a, b) => b[1] - a[1])[0];
-                return Promise.resolve(topDomain ? { domain: topDomain[0], count: topDomain[1] } : null);
+                case "customRulesUpdated":
+                    // Custom rules are stored and can be used for additional blocking
+                    await browser.storage.local.set({ customRules: request.rules || [] });
+                    response = { success: true };
+                    break;
+                
+                case "startMonitor":
+                    // Start monitoring network activity
+                    response = { success: true };
+                    break;
+                
+                case "stopMonitor":
+                    // Stop monitoring network activity
+                    response = { success: true };
+                    break;
+                
+                case "filterListsUpdated":
+                    settings.filterLists = request.filterLists || settings.filterLists;
+                    await browser.storage.local.set({ filterLists: settings.filterLists });
+                    response = { success: true };
+                    break;
+                
+                case "pageLoadTime":
+                    // Track page load times for performance metrics
+                    const loadTimeData = await browser.storage.local.get({ pageLoadTimes: [] });
+                    let loadTimes = loadTimeData.pageLoadTimes || [];
+                    loadTimes.push({
+                        time: request.loadTime,
+                        url: request.url,
+                        timestamp: Date.now()
+                    });
+                    // Keep only last 100 measurements (trimming)
+                    if (loadTimes.length > 100) {
+                        loadTimes = loadTimes.slice(-100);
+                    }
+                    await browser.storage.local.set({ pageLoadTimes: loadTimes });
+                    response = { success: true };
+                    break;
+                
+                case "siteRulesUpdated":
+                    // Update site-specific rules
+                    await browser.storage.local.set({ siteSpecificRules: request.rules || [] });
+                    response = { success: true };
+                    break;
+                
+                case "scheduleUpdated":
+                    // Update scheduled blocking configuration
+                    await browser.storage.local.set({ scheduleConfig: request.schedule });
+                    response = { success: true };
+                    break;
+                
+                case "setDebugMode":
+                    DEBUG_MODE = request.enabled || false;
+                    await browser.storage.local.set({ debugMode: DEBUG_MODE });
+                    console.log('[Adios] Debug mode', DEBUG_MODE ? 'enabled' : 'disabled');
+                    response = { success: true };
+                    break;
+                
+                case "resetStats":
+                    // Reset all statistics
+                    stats.totalBlocked = 0;
+                    stats.trackersBlocked = 0;
+                    stats.adsBlocked = 0;
+                    stats.socialBlocked = 0;
+                    stats.malwareBlocked = 0;
+                    stats.dataSaved = 0;
+                    stats.domainStats = {};
+                    stats.dailyStats = {};
+                    stats.weeklyStats = {};
+                    stats.monthlyStats = {};
+                    stats.blockingHistory = [];
+                    await browser.storage.local.set({
+                        totalBlocked: 0,
+                        trackersBlocked: 0,
+                        adsBlocked: 0,
+                        socialBlocked: 0,
+                        malwareBlocked: 0,
+                        dataSaved: 0,
+                        domainStats: {},
+                        dailyStats: {},
+                        weeklyStats: {},
+                        monthlyStats: {},
+                        blockingHistory: [],
+                        pageLoadTimes: []
+                    });
+                    response = { success: true };
+                    break;
+                
+                default:
+                    console.warn('Unknown message type:', request.type);
+                    response = { error: 'Unknown message type' };
+                    break;
+            }
             
-            case "updateCategorySettings":
-                if (request.blockAds !== undefined) settings.blockAds = request.blockAds;
-                if (request.blockTrackers !== undefined) settings.blockTrackers = request.blockTrackers;
-                if (request.blockSocial !== undefined) settings.blockSocial = request.blockSocial;
-                if (request.blockMalware !== undefined) settings.blockMalware = request.blockMalware;
-                if (request.cookieConsent !== undefined) settings.cookieConsent = request.cookieConsent;
-                if (request.antiFingerprint !== undefined) settings.antiFingerprint = request.antiFingerprint;
-                browser.storage.local.set({ settings: settings });
-                return Promise.resolve();
-            
-            case "customRulesUpdated":
-                // Custom rules are stored and can be used for additional blocking
-                browser.storage.local.set({ customRules: request.rules || [] });
-                return Promise.resolve();
-            
-            case "startMonitor":
-                // Start monitoring network activity
-                return Promise.resolve();
-            
-            case "stopMonitor":
-                // Stop monitoring
-                return Promise.resolve();
-            
-            case "filterListsUpdated":
-                settings.filterLists = request.filterLists || settings.filterLists;
-                browser.storage.local.set({ filterLists: settings.filterLists });
-                return Promise.resolve();
-            
-            case "pageLoadTime":
-                // Track page load times for performance metrics
-                const loadTimeData = await browser.storage.local.get({ pageLoadTimes: [] });
-                let loadTimes = loadTimeData.pageLoadTimes || [];
-                loadTimes.push({
-                    time: request.loadTime,
-                    url: request.url,
-                    timestamp: Date.now()
-                });
-                // Keep only last 100 measurements
-                if (loadTimes.length > 100) {
-                    loadTimes = loadTimes.slice(-100);
-                }
-                browser.storage.local.set({ pageLoadTimes: loadTimes });
-                return Promise.resolve();
-            
-            case "siteRulesUpdated":
-                // Update site-specific rules
-                browser.storage.local.set({ siteSpecificRules: request.rules || [] });
-                return Promise.resolve();
-            
-            case "scheduleUpdated":
-                // Update scheduled blocking configuration
-                browser.storage.local.set({ scheduleConfig: request.schedule });
-                return Promise.resolve();
-            
-            case "resetStats":
-                // Reset all statistics
-                stats.totalBlocked = 0;
-                stats.trackersBlocked = 0;
-                stats.adsBlocked = 0;
-                stats.socialBlocked = 0;
-                stats.malwareBlocked = 0;
-                stats.dataSaved = 0;
-                stats.domainStats = {};
-                stats.dailyStats = {};
-                stats.weeklyStats = {};
-                stats.monthlyStats = {};
-                stats.blockingHistory = [];
-                browser.storage.local.set({
-                    totalBlocked: 0,
-                    trackersBlocked: 0,
-                    adsBlocked: 0,
-                    socialBlocked: 0,
-                    malwareBlocked: 0,
-                    dataSaved: 0,
-                    domainStats: {},
-                    dailyStats: {},
-                    weeklyStats: {},
-                    monthlyStats: {},
-                    blockingHistory: [],
-                    pageLoadTimes: []
-                });
-                return Promise.resolve({ success: true });
+            sendResponse(response);
+        } catch (error) {
+            console.error('Error in message handler:', error);
+            sendResponse({ error: error.message });
         }
-    } catch (error) {
-        console.error('Error in message handler:', error);
-        return Promise.reject(error);
-    }
+    })();
+    
+    // Return true to indicate we will send a response asynchronously
+    return true;
 });
 
 // Log when the background script loads
