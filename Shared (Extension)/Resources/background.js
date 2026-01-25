@@ -1,35 +1,142 @@
 // Common ad network domains and patterns
 const adPatterns = [
+    // Google Ads - DoubleClick
     "*://*.doubleclick.net/*",
+    "*://*.doubleclick.com/*",
+    "*://*.ad.doubleclick.net/*",
+    "*://*.m.doubleclick.net/*",
+    "*://*.static.doubleclick.net/*",
+    "*://*.stats.g.doubleclick.net/*",
+    "*://*.mediavisor.doubleclick.net/*",
+    "*://*.googleads.g.doubleclick.net/*",
+    
+    // Google Ad Services
+    "*://*.googleadservices.com/*",
     "*://partner.googleadservices.com/*",
+    "*://pagead2.googleadservices.com/*",
+    "*://*.pagead2.googleadservices.com/*",
+    
+    // Google Syndication
     "*://*.googlesyndication.com/*",
+    "*://pagead2.googlesyndication.com/*",
+    "*://*.pagead2.googlesyndication.com/*",
+    "*://*.afs.googlesyndication.com/*",
+    
+    // Google Tag Services
     "*://*.googletagservices.com/*",
+    
+    // Google Ad Service
+    "*://*.adservice.google.com/*",
+    "*://*.adservice.google.*/*",
+    
+    // Google.com ad paths
+    "*://*.google.com/pagead/*",
+    "*://*.google.com/ads/*",
+    "*://*.google.com/adsid/*",
+    "*://*.google.com/adsense/*",
+    "*://*.google.com/afd/*",
+    "*://*.google.com/afs/*",
+    
+    // Major Ad Networks & Platforms
     "*://*.amazon-adsystem.com/*",
-    "*://*.adnxs.com/*",
-    "*://*.advertising.com/*",
+    "*://*.adnxs.com/*",  // AppNexus/Xandr
+    "*://*.xandr.com/*",
     "*://*.outbrain.com/*",
     "*://*.taboola.com/*",
-    "*://pagead2.googlesyndication.com/*",
     "*://*.adroll.com/*",
     "*://*.mediamath.com/*",
     "*://*.rubiconproject.com/*",
     "*://*.openx.net/*",
+    "*://*.openx.com/*",
     "*://*.pubmatic.com/*",
+    "*://*.indexexchange.com/*",
+    "*://*.indexww.com/*",
+    "*://*.criteo.com/*",
+    "*://*.criteo.net/*",
+    "*://*.media.net/*",
+    "*://*.adtechus.com/*",
+    "*://*.adtech.de/*",
+    "*://*.adtech.com/*",
+    "*://*.adtech.fr/*",
+    "*://*.adtech.jp/*",
+    "*://*.casalemedia.com/*",
+    "*://*.33across.com/*",
+    "*://*.33across.net/*",
+    "*://*.sovrn.com/*",
+    "*://*.lijit.com/*",
+    "*://*.conversantmedia.com/*",
+    "*://*.adform.com/*",
+    "*://*.adform.net/*",
+    "*://*.adformdsp.net/*",
+    "*://*.adcolony.com/*",
+    "*://*.adsrvr.org/*",
+    "*://*.adsystem.com/*",
+    "*://*.brightcom.com/*",
+    "*://*.brightcom.net/*",
+    "*://*.brightroll.com/*",
+    "*://*.adsafeprotected.com/*",
+    
+    // Video Ad Networks
+    "*://*.spotxchange.com/*",
+    "*://*.spotx.tv/*",
+    "*://*.videologygroup.com/*",
+    "*://*.tremorvideo.com/*",
+    "*://*.brightcove.com/*",
+    "*://*.jwplayer.com/*",
+    
+    // Native Ad Networks
+    "*://*.revcontent.com/*",
+    "*://*.content.ad/*",
+    "*://*.mgid.com/*",
+    "*://*.zemanta.com/*",
+    
+    // Additional Ad Platforms
+    "*://*.adserver.yahoo.com/*",
+    "*://*.yieldmanager.com/*",
+    "*://*.yieldmo.com/*",
+    "*://*.advertising.com/*",
+    "*://*.advertising.net/*",
 ];
 
 // Tracker domains
 const trackerPatterns = [
+    // Google Analytics & Tracking
     "*://*.google-analytics.com/*",
+    "*://*.analytics.google.com/*",
+    "*://*.googletagmanager.com/*",
+    "*://*.google-analytics.com/*",
+    "*://*.googletagmanager.com/*",
+    "*://*.googleadservices.com/*",
+    
+    // Facebook Tracking
+    "*://*.facebook.com/tr*",
+    "*://*.facebook.net/*",
+    "*://*.fbcdn.net/*",
+    "*://*.atdmt.com/*",
+    
+    // Other Major Trackers
     "*://*.scorecardresearch.com/*",
     "*://*.quantserve.com/*",
     "*://*.criteo.com/*",
-    "*://*.adservice.google.com/*",
-    "*://*.analytics.google.com/*",
-    "*://*.googletagmanager.com/*",
-    "*://*.facebook.com/tr*",
-    "*://*.facebook.net/*",
     "*://*.hotjar.com/*",
     "*://*.mouseflow.com/*",
+    "*://*.mixpanel.com/*",
+    "*://*.segment.com/*",
+    "*://*.amplitude.com/*",
+    "*://*.fullstory.com/*",
+    "*://*.heap.io/*",
+    "*://*.newrelic.com/*",
+    "*://*.optimizely.com/*",
+    "*://*.adobe.com/*",
+    "*://*.omniture.com/*",
+    "*://*.2o7.net/*",
+    "*://*.demdex.net/*",
+    "*://*.everesttech.net/*",
+    "*://*.krxd.net/*",
+    "*://*.nexac.com/*",
+    "*://*.bluekai.com/*",
+    "*://*.rlcdn.com/*",
+    "*://*.agkn.com/*",
 ];
 
 // Social media tracking
@@ -130,6 +237,25 @@ function estimateRequestSize(details) {
 // Helper function to determine block category
 function getBlockCategory(url) {
     const domain = url.hostname.toLowerCase();
+    const urlString = url.href.toLowerCase();
+    
+    // Check for Google ad/tracking domains first (most common)
+    if (domain.includes('doubleclick') || 
+        domain.includes('googleadservices') || 
+        domain.includes('googlesyndication') ||
+        domain.includes('googletagservices') ||
+        domain.includes('adservice.google') ||
+        urlString.includes('/pagead/') ||
+        urlString.includes('/ads/') ||
+        urlString.includes('/adsense/') ||
+        urlString.includes('/afd/') ||
+        urlString.includes('/afs/')) {
+        // Check if it's a tracker first
+        if (domain.includes('analytics') || domain.includes('googletagmanager') || domain.includes('google-analytics')) {
+            return 'tracker';
+        }
+        return 'ad';
+    }
     
     // Check tracker patterns
     if (trackerPatterns.some(pattern => {
@@ -137,6 +263,14 @@ function getBlockCategory(url) {
         return regex.test(url.href);
     })) {
         return 'tracker';
+    }
+    
+    // Check ad patterns
+    if (adPatterns.some(pattern => {
+        const regex = new RegExp('^' + pattern.replace(/\*/g, '.*').replace(/\//g, '\\/') + '$');
+        return regex.test(url.href);
+    })) {
+        return 'ad';
     }
     
     // Check social patterns
@@ -197,8 +331,9 @@ function updateTimeStats(category, size) {
     stats.monthlyStats[monthStart].dataSaved += size;
 }
 
-// Block requests
-const allPatterns = [...adPatterns, ...trackerPatterns, ...socialPatterns, ...malwarePatterns];
+// Block requests - use a broader pattern to catch all requests, then filter in the handler
+// This ensures we catch Google ads that might not match exact patterns
+const allPatterns = ["<all_urls>"];
 
 browser.webRequest.onBeforeRequest.addListener(
     function(details) {
@@ -206,7 +341,8 @@ browser.webRequest.onBeforeRequest.addListener(
         
         try {
             const url = new URL(details.url);
-            const domain = url.hostname;
+            const domain = url.hostname.toLowerCase();
+            const urlString = url.href.toLowerCase();
             
             // Don't block if URL contains cookie-related paths (unless cookie consent is enabled)
             if (!settings.cookieConsent && (url.pathname.toLowerCase().includes('cookie') || 
@@ -225,8 +361,69 @@ browser.webRequest.onBeforeRequest.addListener(
                 return { cancel: false };
             }
 
+            // Check if this is a Google ad/tracking domain first (most common case)
+            const isGoogleAd = domain.includes('doubleclick') || 
+                              domain.includes('googleadservices') || 
+                              domain.includes('googlesyndication') ||
+                              domain.includes('googletagservices') ||
+                              domain.includes('adservice.google') ||
+                              urlString.includes('/pagead/') ||
+                              urlString.includes('/ads/') ||
+                              urlString.includes('/adsense/') ||
+                              urlString.includes('/afd/') ||
+                              urlString.includes('/afs/') ||
+                              domain.includes('google-analytics') ||
+                              domain.includes('googletagmanager') ||
+                              domain.includes('analytics.google');
+            
             // Determine category (needed for stats and rules)
             const category = getBlockCategory(url);
+            
+            // If it's a Google ad/tracker and blocking is enabled, block it
+            if (isGoogleAd) {
+                if (category === 'tracker' && !settings.blockTrackers) {
+                    return { cancel: false };
+                }
+                if (category === 'ad' && !settings.blockAds) {
+                    return { cancel: false };
+                }
+                // Proceed to block
+            } else {
+                // For non-Google domains, check if they match our patterns
+                const matchesPattern = adPatterns.some(pattern => {
+                    try {
+                        const regex = new RegExp('^' + pattern.replace(/\*/g, '.*').replace(/\//g, '\\/') + '$');
+                        return regex.test(details.url);
+                    } catch (e) {
+                        return false;
+                    }
+                }) || trackerPatterns.some(pattern => {
+                    try {
+                        const regex = new RegExp('^' + pattern.replace(/\*/g, '.*').replace(/\//g, '\\/') + '$');
+                        return regex.test(details.url);
+                    } catch (e) {
+                        return false;
+                    }
+                }) || socialPatterns.some(pattern => {
+                    try {
+                        const regex = new RegExp('^' + pattern.replace(/\*/g, '.*').replace(/\//g, '\\/') + '$');
+                        return regex.test(details.url);
+                    } catch (e) {
+                        return false;
+                    }
+                }) || malwarePatterns.some(pattern => {
+                    try {
+                        const regex = new RegExp('^' + pattern.replace(/\*/g, '.*').replace(/\//g, '\\/') + '$');
+                        return regex.test(details.url);
+                    } catch (e) {
+                        return false;
+                    }
+                });
+                
+                if (!matchesPattern) {
+                    return { cancel: false };
+                }
+            }
             
             // Check custom rules first (highest priority)
             const customRulesData = await browser.storage.local.get({ customRules: [] });
