@@ -7,15 +7,6 @@
                 "*analyticsengine.s3.amazonaws.com",
                 "*analytics.s3.amazonaws.com",
                 "*advice-ads.s3.amazonaws.com",
-                "*pagead2.googlesyndication.com",
-                "*adservice.google.com",
-                "*pagead2.googleadservices.com",
-                "*afs.googlesyndication.com",
-                "*stats.g.doubleclick.net",
-                "*ad.doubleclick.net",
-                "*static.doubleclick.net",
-                "*m.doubleclick.net",
-                "*mediavisor.doubleclick.net",
                 "*ads30.adcolony.com",
                 "*adc3-launch.adcolony.com",
                 "*events3alt.adcolony.com",
@@ -24,7 +15,7 @@
                 "*media.net",
                 "*adservetx.media.net"
             ],
-            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup", "xmlhttprequest"]
+            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup"]
         },
         "action": {
             "type": "block"
@@ -65,7 +56,7 @@
                 "*settings.luckyorange.net",
                 "*stats.wp.com"
             ],
-            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup", "xmlhttprequest"]
+            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup"]
         },
         "action": {
             "type": "block"
@@ -82,7 +73,7 @@
                 "*browser.sentry-cdn.com",
                 "*app.getsentry.com"
             ],
-            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup", "xmlhttprequest"]
+            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup"]
         },
         "action": {
             "type": "block"
@@ -113,7 +104,7 @@
                 "*ads.tiktok.com",
                 "*log.byteoversea.com"
             ],
-            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup", "xmlhttprequest"]
+            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup"]
         },
         "action": {
             "type": "block"
@@ -144,7 +135,7 @@
                 "*config.unityads.unity3d.com",
                 "*adserver.unityads.unity3d.com"
             ],
-            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup", "xmlhttprequest"]
+            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup"]
         },
         "action": {
             "type": "block"
@@ -190,20 +181,10 @@
                 "*weather-analytics-events.apple.com",
                 "*notes-analytics-events.apple.com"
             ],
-            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup", "xmlhttprequest"]
+            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup"]
         },
         "action": {
             "type": "block"
-        }
-    },
-    {
-        "trigger": {
-            "url-filter": ".*",
-            "if-domain": ["*"]
-        },
-        "action": {
-            "type": "css-display-none",
-            "selector": "div[id*='google_ads'], div[id*='ad-'], div[class*='ad-'], div[class*='advert'], .advertisement, ins.adsbygoogle, div[class*='sponsored'], div[class*='taboola'], div[class*='outbrain'], iframe[src*='doubleclick'], iframe[src*='ads'], div[class*='banner'], div[class*='social'], .social-share, .share-buttons, div[class*='tracking'], div[class*='analytics']"
         }
     }
 ] 

@@ -1,6 +1,146 @@
+// Browser API polyfill for compatibility
+if (typeof browser === 'undefined') {
+    globalThis.browser = typeof chrome !== 'undefined' ? chrome : {};
+}
+
+// State update lock to prevent race conditions
+let updateLock = false;
+const updateQueue = [];
+
+// Helper function to queue state updates
+async function queueStateUpdate(updateFn) {
+    return new Promise((resolve, reject) => {
+        updateQueue.push({ updateFn, resolve, reject });
+        processUpdateQueue();
+    });
+}
+
+// Process update queue one at a time
+async function processUpdateQueue() {
+    if (updateLock || updateQueue.length === 0) return;
+    
+    updateLock = true;
+    const { updateFn, resolve, reject } = updateQueue.shift();
+    
+    try {
+        await updateFn();
+        resolve();
+    } catch (error) {
+        console.error('State update error:', error);
+        reject(error);
+    } finally {
+        updateLock = false;
+        // Process next item in queue
+        if (updateQueue.length > 0) {
+            setTimeout(processUpdateQueue, 0);
+        }
+    }
+}
+
+// Helper function to safely update DOM elements
+function safeUpdateElement(elementId, updateFn) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        try {
+            updateFn(element);
+        } catch (error) {
+            console.error(`Error updating element ${elementId}:`, error);
+        }
+    }
+}
+
+// Helper function to validate domain input
+function validateDomain(domain) {
+    if (!domain || typeof domain !== 'string') return false;
+    
+    // Remove protocol and path
+    const cleanDomain = domain.trim()
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '')
+        .split('/')[0]
+        .split('?')[0];
+    
+    // Basic domain validation
+    const domainRegex = /^([a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
+    return domainRegex.test(cleanDomain) && cleanDomain.length <= 253;
+}
+
+// Helper function to validate custom rule pattern
+function validateRulePattern(pattern) {
+    if (!pattern || typeof pattern !== 'string') return false;
+    
+    // Basic pattern validation - must contain *:// or be a valid URL pattern
+    const trimmed = pattern.trim();
+    if (trimmed.length === 0 || trimmed.length > 500) return false;
+    
+    // Check for valid pattern format
+    try {
+        // Try to create a regex from the pattern
+        const regexStr = '^' + trimmed.replace(/\*/g, '.*').replace(/\//g, '\\/') + '$';
+        new RegExp(regexStr);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+// Helper function to trim large stats/history objects
+function trimStatsIfNeeded(stats) {
+    if (!stats) return;
+    
+    // Trim blocking history to last 100 entries
+    if (stats.blockingHistory && stats.blockingHistory.length > 100) {
+        stats.blockingHistory = stats.blockingHistory.slice(-100);
+    }
+    
+    // Trim daily stats to last 90 days
+    if (stats.dailyStats) {
+        const now = new Date();
+        const cutoffDate = new Date(now.setDate(now.getDate() - 90));
+        const cutoff = cutoffDate.toISOString().split('T')[0];
+        
+        Object.keys(stats.dailyStats).forEach(date => {
+            if (date < cutoff) {
+                delete stats.dailyStats[date];
+            }
+        });
+    }
+    
+    // Trim weekly stats to last 52 weeks
+    if (stats.weeklyStats) {
+        const keys = Object.keys(stats.weeklyStats).sort();
+        if (keys.length > 52) {
+            keys.slice(0, keys.length - 52).forEach(key => {
+                delete stats.weeklyStats[key];
+            });
+        }
+    }
+    
+    // Trim monthly stats to last 24 months
+    if (stats.monthlyStats) {
+        const keys = Object.keys(stats.monthlyStats).sort();
+        if (keys.length > 24) {
+            keys.slice(0, keys.length - 24).forEach(key => {
+                delete stats.monthlyStats[key];
+            });
+        }
+    }
+    
+    // Trim domain stats to top 1000 domains
+    if (stats.domainStats) {
+        const entries = Object.entries(stats.domainStats);
+        if (entries.length > 1000) {
+            entries.sort((a, b) => b[1] - a[1]);
+            const top1000 = entries.slice(0, 1000);
+            stats.domainStats = Object.fromEntries(top1000);
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
-    // Get elements
-    const enableToggle = document.getElementById('enableToggle');
+    try {
+        // Get elements
+        const enableToggle = document.getElementById('enableToggle');
     const adsBlockedElement = document.getElementById('adsBlocked');
     const dataSavedElement = document.getElementById('dataSaved');
     const trackersBlockedElement = document.getElementById('trackersBlocked');
@@ -70,19 +210,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         antiFingerprint: true
     };
     
-    // Update UI with saved stats
-    adsBlockedElement.textContent = stats.adsBlocked.toLocaleString();
-    trackersBlockedElement.textContent = stats.trackersBlocked.toLocaleString();
-    dataSavedElement.textContent = formatBytes(stats.dataSaved);
-    enableToggle.checked = savedData.enabled;
+    // Trim stats if needed
+    trimStatsIfNeeded(stats);
     
-    // Update category toggles
-    blockAdsToggle.checked = settings.blockAds !== false;
-    blockTrackersToggle.checked = settings.blockTrackers !== false;
-    blockSocialToggle.checked = settings.blockSocial !== false;
-    blockMalwareToggle.checked = settings.blockMalware !== false;
-    cookieConsentToggle.checked = settings.cookieConsent !== false;
-    antiFingerprintToggle.checked = settings.antiFingerprint !== false;
+    // Update UI with saved stats (with DOM checks)
+    safeUpdateElement('adsBlocked', (el) => {
+        el.textContent = stats.adsBlocked.toLocaleString();
+    });
+    safeUpdateElement('trackersBlocked', (el) => {
+        el.textContent = stats.trackersBlocked.toLocaleString();
+    });
+    safeUpdateElement('dataSaved', (el) => {
+        el.textContent = formatBytes(stats.dataSaved);
+    });
+    
+    if (enableToggle) enableToggle.checked = savedData.enabled;
+    
+    // Update category toggles (with DOM checks)
+    if (blockAdsToggle) blockAdsToggle.checked = settings.blockAds !== false;
+    if (blockTrackersToggle) blockTrackersToggle.checked = settings.blockTrackers !== false;
+    if (blockSocialToggle) blockSocialToggle.checked = settings.blockSocial !== false;
+    if (blockMalwareToggle) blockMalwareToggle.checked = settings.blockMalware !== false;
+    if (cookieConsentToggle) cookieConsentToggle.checked = settings.cookieConsent !== false;
+    if (antiFingerprintToggle) antiFingerprintToggle.checked = settings.antiFingerprint !== false;
     
     // Update time-based stats
     function updateTimeStats(period = 'today') {
@@ -100,8 +250,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             statsToUse = stats.monthlyStats[monthStart] || { blocked: 0, dataSaved: 0 };
         }
         
-        todayBlockedElement.textContent = statsToUse.blocked.toLocaleString();
-        todayDataSavedElement.textContent = formatBytes(statsToUse.dataSaved);
+        safeUpdateElement('todayBlocked', (el) => {
+            el.textContent = statsToUse.blocked.toLocaleString();
+        });
+        safeUpdateElement('todayDataSaved', (el) => {
+            el.textContent = formatBytes(statsToUse.dataSaved);
+        });
     }
     
     updateTimeStats('today');
@@ -146,80 +300,142 @@ document.addEventListener('DOMContentLoaded', async () => {
         return Math.max(0, Math.min(100, Math.round(score)));
     }
     
-    // Get current tab info
-    const tabs = await browser.tabs.query({active: true, currentWindow: true});
+    // Get current tab info (with error handling)
     let currentDomain = '-';
-    if (tabs[0]) {
-        const url = new URL(tabs[0].url);
-        currentDomain = url.hostname;
-        currentDomainElement.textContent = currentDomain;
+    try {
+        const tabs = await browser.tabs.query({active: true, currentWindow: true});
+        if (tabs && tabs.length > 0) {
+            const tab = tabs[0];
+            const url = tab.url;
+            if (url && url !== 'about:blank' && url !== 'chrome://newtab/' && url !== 'edge://newtab/') {
+                try {
+                    const urlObj = new URL(url);
+                    const domain = urlObj.hostname.replace(/^www\./, '');
+                    currentDomain = domain;
+                    
+                    safeUpdateElement('currentDomain', (el) => {
+                        el.textContent = domain;
+                    });
+                    
+                    // Get site-specific stats
+                    const siteStats = await browser.storage.local.get({
+                        [`site:${domain}`]: 0
+                    });
+                    const siteCount = siteStats[`site:${domain}`] || 0;
+                    
+                    safeUpdateElement('siteBlockCount', (el) => {
+                        el.textContent = siteCount.toLocaleString();
+                    });
+                    
+                    // Check if site is in exceptions
+                    const { exceptions = [] } = await browser.storage.local.get({ exceptions: [] });
+                    const isExcepted = exceptions.includes(domain);
+                    
+                    // Update exception button (with DOM check)
+                    const exceptionBtn = document.getElementById('toggleException');
+                    if (exceptionBtn) {
+                        exceptionBtn.textContent = isExcepted ? 'Remove from Exceptions' : 'Allow Ads on This Site';
+                        exceptionBtn.classList.toggle('excepted', isExcepted);
+                    }
+
+                    // Load per-site overrides, block rate, and cosmetic rules
+                    // (these functions are defined below; they run after DOMContentLoaded finishes)
+                    setTimeout(() => {
+                        loadSiteOverrides(domain).catch(() => {});
+                        checkBlockRate(domain).catch(() => {});
+                    }, 100);
+                } catch (e) {
+                    // Invalid URL
+                    console.error('Error parsing URL:', e);
+                    currentDomain = '-';
+                    safeUpdateElement('currentDomain', (el) => {
+                        el.textContent = '-';
+                    });
+                }
+            } else {
+                currentDomain = '-';
+                safeUpdateElement('currentDomain', (el) => {
+                    el.textContent = '-';
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error getting tab info:', error);
+        currentDomain = '-';
+        safeUpdateElement('currentDomain', (el) => {
+            el.textContent = '-';
+        });
     }
     
     // Update dashboard
     function updateDashboard() {
-        // Privacy score
-        const privacyScore = calculatePrivacyScore(currentDomain);
-        const privacyScoreElement = document.getElementById('privacyScore');
-        if (privacyScoreElement) {
-            privacyScoreElement.textContent = privacyScore;
-            privacyScoreElement.className = 'dashboard-value privacy-score';
-            if (privacyScore < 50) {
-                privacyScoreElement.classList.add('low');
-            } else if (privacyScore < 80) {
-                privacyScoreElement.classList.add('medium');
-            } else {
-                privacyScoreElement.classList.add('high');
+        try {
+            // Privacy score
+            const privacyScore = calculatePrivacyScore(currentDomain);
+            const privacyScoreElement = document.getElementById('privacyScore');
+            if (privacyScoreElement) {
+                privacyScoreElement.textContent = privacyScore;
+                privacyScoreElement.className = 'dashboard-value privacy-score';
+                if (privacyScore < 50) {
+                    privacyScoreElement.classList.add('low');
+                } else if (privacyScore < 80) {
+                    privacyScoreElement.classList.add('medium');
+                } else {
+                    privacyScoreElement.classList.add('high');
+                }
             }
+            
+            // Top domain
+            const topDomain = Object.entries(stats.domainStats || {})
+                .sort((a, b) => b[1] - a[1])[0];
+            
+            safeUpdateElement('topDomain', (el) => {
+                el.textContent = topDomain ? topDomain[0] : '-';
+            });
+            
+            // Category breakdown
+            safeUpdateElement('adsCount', (el) => {
+                el.textContent = stats.adsBlocked.toLocaleString();
+            });
+            
+            safeUpdateElement('trackersCount', (el) => {
+                el.textContent = stats.trackersBlocked.toLocaleString();
+            });
+        } catch (error) {
+            console.error('Error updating dashboard:', error);
         }
-        
-        // Top domain
-        const topDomain = Object.entries(stats.domainStats)
-            .sort((a, b) => b[1] - a[1])[0];
-        if (topDomainElement) {
-            topDomainElement.textContent = topDomain ? topDomain[0] : '-';
-        }
-        
-        // Category breakdown
-        if (adsCountElement) adsCountElement.textContent = stats.adsBlocked.toLocaleString();
-        if (trackersCountElement) trackersCountElement.textContent = stats.trackersBlocked.toLocaleString();
     }
     
     updateDashboard();
     
-    if (tabs[0]) {
-        const url = new URL(tabs[0].url);
-        const domain = url.hostname;
-        
-        // Check if site is in exceptions
+    // Load and display exceptions list
+    async function updateExceptionsList() {
         const { exceptions = [] } = await browser.storage.local.get({ exceptions: [] });
-        const isExcepted = exceptions.includes(domain);
+        const exceptionsList = document.getElementById('exceptionsList');
+        const emptyMessage = document.getElementById('emptyExceptions');
+        const exceptionsCount = document.getElementById('exceptionsCount');
         
-        // Update exception button
-        const exceptionBtn = document.getElementById('toggleException');
-        exceptionBtn.textContent = isExcepted ? 'Remove from Exceptions' : 'Allow Ads on This Site';
-        exceptionBtn.classList.toggle('excepted', isExcepted);
-        
-        // Load and display exceptions list
-        async function updateExceptionsList() {
-            const { exceptions = [] } = await browser.storage.local.get({ exceptions: [] });
-            const exceptionsList = document.getElementById('exceptionsList');
-            const emptyMessage = document.getElementById('emptyExceptions');
-            const exceptionsCount = document.getElementById('exceptionsCount');
-            
-            // Update count
+        // Update count
+        if (exceptionsCount) {
             exceptionsCount.textContent = exceptions.length;
-            
+        }
+        
+        if (exceptionsList) {
             exceptionsList.innerHTML = '';
-            
-            if (exceptions.length === 0) {
-                emptyMessage.style.display = 'block';
-                document.getElementById('toggleExceptionsList').style.display = 'none';
-                return;
-            }
-            
-            emptyMessage.style.display = 'none';
-            document.getElementById('toggleExceptionsList').style.display = 'block';
-            
+        }
+        
+        if (exceptions.length === 0) {
+            if (emptyMessage) emptyMessage.style.display = 'block';
+            const toggleBtn = document.getElementById('toggleExceptionsList');
+            if (toggleBtn) toggleBtn.style.display = 'none';
+            return;
+        }
+        
+        if (emptyMessage) emptyMessage.style.display = 'none';
+        const toggleBtn = document.getElementById('toggleExceptionsList');
+        if (toggleBtn) toggleBtn.style.display = 'block';
+        
+        if (exceptionsList) {
             exceptions.forEach(domain => {
                 const item = document.createElement('li');
                 item.className = 'exception-item';
@@ -247,173 +463,415 @@ document.addEventListener('DOMContentLoaded', async () => {
                 exceptionsList.appendChild(item);
             });
         }
-        
-        // Handle exceptions list toggle
-        document.getElementById('toggleExceptionsList').addEventListener('click', (e) => {
-            const list = document.getElementById('exceptionsList');
-            const isExpanded = list.classList.contains('expanded');
-            list.classList.toggle('expanded');
-            e.target.textContent = isExpanded ? 'Show All' : 'Hide';
-        });
-        
-        // Handle manual exception entry
-        document.getElementById('addManualException').addEventListener('click', () => {
-            const manualEntry = document.getElementById('manualEntry');
-            manualEntry.style.display = manualEntry.style.display === 'none' ? 'flex' : 'none';
-            if (manualEntry.style.display === 'flex') {
-                document.getElementById('manualDomain').focus();
-            }
-        });
-        
-        document.getElementById('saveManualEntry').addEventListener('click', async () => {
-            const input = document.getElementById('manualDomain');
-            let domain = input.value.trim().toLowerCase();
-            
-            // Basic domain validation
-            if (!domain) return;
-            
-            // Remove http(s):// and www. if present
-            domain = domain.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
-            
-            // Remove anything after the first slash
-            domain = domain.split('/')[0];
-            
-            const { exceptions = [] } = await browser.storage.local.get({ exceptions: [] });
-            
-            if (!exceptions.includes(domain)) {
-                const newExceptions = [...exceptions, domain];
-                await browser.storage.local.set({ exceptions: newExceptions });
-                browser.runtime.sendMessage({ 
-                    type: 'exceptionsUpdated', 
-                    exceptions: newExceptions 
-                });
-                await updateExceptionsList();
-            }
-            
-            input.value = '';
-            document.getElementById('manualEntry').style.display = 'none';
-        });
-        
-        // Handle Enter key in manual entry
-        document.getElementById('manualDomain').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('saveManualEntry').click();
-            }
-        });
-        
-        // Initial load of exceptions list
-        await updateExceptionsList();
-        
-        // Handle exception toggle
-        exceptionBtn.addEventListener('click', async () => {
-            const { exceptions = [] } = await browser.storage.local.get({ exceptions: [] });
-            let newExceptions;
-            
-            if (isExcepted) {
-                newExceptions = exceptions.filter(d => d !== domain);
-                exceptionBtn.textContent = 'Allow Ads on This Site';
-                exceptionBtn.classList.remove('excepted');
-            } else {
-                newExceptions = [...exceptions, domain];
-                exceptionBtn.textContent = 'Remove from Exceptions';
-                exceptionBtn.classList.add('excepted');
-            }
-            
-            await browser.storage.local.set({ exceptions: newExceptions });
-            browser.runtime.sendMessage({ 
-                type: 'exceptionsUpdated', 
-                exceptions: newExceptions 
-            });
-            
-            // Update the exceptions list
-            await updateExceptionsList();
-        });
-        
-        // Get site-specific stats
-        const siteStats = await browser.storage.local.get({
-            [`site:${domain}`]: 0
-        });
-        siteBlockCountElement.textContent = 
-            `${siteStats[`site:${domain}`]} ads blocked`;
     }
     
-    // Handle main toggle
-    enableToggle.addEventListener('change', async (e) => {
-        await browser.storage.local.set({ enabled: e.target.checked });
-        browser.runtime.sendMessage({
-            type: 'toggleBlocking',
-            enabled: e.target.checked
+    // Handle "Allow Ads on This Site" button
+    const toggleExceptionBtn = document.getElementById('toggleException');
+    if (toggleExceptionBtn) {
+        toggleExceptionBtn.addEventListener('click', async () => {
+            if (!currentDomain || currentDomain === '-') return;
+            try {
+                const { exceptions = [] } = await browser.storage.local.get({ exceptions: [] });
+                const isExcepted = exceptions.includes(currentDomain);
+                let updated;
+                if (isExcepted) {
+                    updated = exceptions.filter(d => d !== currentDomain);
+                } else {
+                    updated = [...exceptions, currentDomain];
+                }
+                await browser.storage.local.set({ exceptions: updated });
+                // Notify background script
+                try {
+                    await browser.runtime.sendMessage({ type: 'exceptionsUpdated', exceptions: updated });
+                } catch (e) { /* background may not be listening */ }
+                // Update button UI
+                const nowExcepted = updated.includes(currentDomain);
+                toggleExceptionBtn.textContent = nowExcepted ? 'Remove from Exceptions' : 'Allow Ads on This Site';
+                toggleExceptionBtn.classList.toggle('excepted', nowExcepted);
+                // Refresh the exceptions list
+                await updateExceptionsList();
+            } catch (e) {
+                console.error('Error toggling exception:', e);
+            }
         });
-    });
-    
-    // Handle category toggles
-    blockAdsToggle.addEventListener('change', async (e) => {
-        await browser.runtime.sendMessage({
-            type: 'updateCategorySettings',
-            blockAds: e.target.checked
-        });
-        settings.blockAds = e.target.checked;
-    });
-    
-    blockTrackersToggle.addEventListener('change', async (e) => {
-        await browser.runtime.sendMessage({
-            type: 'updateCategorySettings',
-            blockTrackers: e.target.checked
-        });
-        settings.blockTrackers = e.target.checked;
-    });
-    
-    blockSocialToggle.addEventListener('change', async (e) => {
-        await browser.runtime.sendMessage({
-            type: 'updateCategorySettings',
-            blockSocial: e.target.checked
-        });
-        settings.blockSocial = e.target.checked;
-    });
-    
-    blockMalwareToggle.addEventListener('change', async (e) => {
-        await browser.runtime.sendMessage({
-            type: 'updateCategorySettings',
-            blockMalware: e.target.checked
-        });
-        settings.blockMalware = e.target.checked;
-    });
-    
-    cookieConsentToggle.addEventListener('change', async (e) => {
-        await browser.runtime.sendMessage({
-            type: 'updateCategorySettings',
-            cookieConsent: e.target.checked
-        });
-        settings.cookieConsent = e.target.checked;
-    });
-    
-    antiFingerprintToggle.addEventListener('change', async (e) => {
-        await browser.runtime.sendMessage({
-            type: 'updateCategorySettings',
-            antiFingerprint: e.target.checked
-        });
-        settings.antiFingerprint = e.target.checked;
-    });
-    
-    // Handle export stats
-    document.getElementById('exportStats').addEventListener('click', async () => {
-        const exportData = {
-            stats: stats,
-            settings: settings,
-            exportDate: new Date().toISOString()
+    }
+
+    // ── Per-site category overrides ──────────────────────────────────────────
+    let currentSiteOverrides = null; // null = no override (follow global)
+
+    async function loadSiteOverrides(domain) {
+        if (!domain || domain === '-') return;
+        try {
+            const resp = await browser.runtime.sendMessage({ type: 'getSiteSettings', domain });
+            currentSiteOverrides = resp?.settings || null;
+            renderSiteOverrides(domain);
+            await loadCosmeticRules(domain);
+        } catch (e) { console.error('Error loading site overrides:', e); }
+    }
+
+    function renderSiteOverrides(domain) {
+        const ovr = currentSiteOverrides || {};
+        const hasOverride = currentSiteOverrides !== null;
+
+        const setOvr = (id, key, globalVal) => {
+            const el = document.getElementById(id);
+            const hint = document.getElementById(id + 'Hint');
+            if (!el) return;
+            el.checked = ovr[key] !== undefined ? ovr[key] : globalVal;
+            if (hint) hint.textContent = ovr[key] !== undefined ? '(custom)' : '';
         };
-        
-        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `adios-stats-${new Date().toISOString().split('T')[0]}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+        setOvr('siteBlockAds',      'blockAds',      settings.blockAds);
+        setOvr('siteBlockTrackers', 'blockTrackers', settings.blockTrackers);
+        setOvr('siteBlockSocial',   'blockSocial',   settings.blockSocial);
+        setOvr('siteCookieConsent', 'cookieConsent', settings.cookieConsent);
+
+        const resetBtn = document.getElementById('resetSiteOverrides');
+        if (resetBtn) resetBtn.style.display = hasOverride ? 'inline-block' : 'none';
+    }
+
+    async function saveSiteOverride(key, value) {
+        if (!currentDomain || currentDomain === '-') return;
+        const current = currentSiteOverrides || {};
+        current[key] = value;
+        currentSiteOverrides = current;
+        await browser.runtime.sendMessage({ type: 'setSiteSettings', domain: currentDomain, settings: current });
+        renderSiteOverrides(currentDomain);
+    }
+
+    ['siteBlockAds', 'siteBlockTrackers', 'siteBlockSocial', 'siteCookieConsent'].forEach(id => {
+        const keyMap = { siteBlockAds: 'blockAds', siteBlockTrackers: 'blockTrackers', siteBlockSocial: 'blockSocial', siteCookieConsent: 'cookieConsent' };
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => saveSiteOverride(keyMap[id], el.checked));
     });
+
+    const resetSiteBtn = document.getElementById('resetSiteOverrides');
+    if (resetSiteBtn) {
+        resetSiteBtn.addEventListener('click', async () => {
+            if (!currentDomain || currentDomain === '-') return;
+            currentSiteOverrides = null;
+            await browser.runtime.sendMessage({ type: 'setSiteSettings', domain: currentDomain, settings: null });
+            renderSiteOverrides(currentDomain);
+        });
+    }
+
+    // ── Broken page indicator ─────────────────────────────────────────────
+    async function checkBlockRate(domain) {
+        if (!domain || domain === '-') return;
+        try {
+            const resp = await browser.runtime.sendMessage({ type: 'getPageBlockRate', domain });
+            const warning = document.getElementById('brokenPageWarning');
+            const text = document.getElementById('brokenPageText');
+            if (!warning || !resp) return;
+            // Show warning if > 25% of requests blocked AND > 8 blocked total
+            const show = resp.rate > 0.25 && resp.blocked > 8;
+            warning.style.display = show ? 'flex' : 'none';
+            if (show && text) {
+                text.textContent = `${Math.round(resp.rate * 100)}% of requests blocked (${resp.blocked}/${resp.total}) — content may be missing.`;
+            }
+        } catch (e) { /* background unavailable */ }
+    }
+
+    const brokenPageFixBtn = document.getElementById('brokenPageFix');
+    if (brokenPageFixBtn) {
+        brokenPageFixBtn.addEventListener('click', () => {
+            // Scroll to site overrides and highlight them
+            const ovr = document.getElementById('siteOverrides');
+            if (ovr) ovr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    }
+
+    // ── Element picker ────────────────────────────────────────────────────
+    let pickerActive = false;
+
+    async function activatePicker() {
+        if (!currentDomain || currentDomain === '-') return;
+        try {
+            const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+            if (!tabs[0]) return;
+            await browser.tabs.sendMessage(tabs[0].id, { type: 'activatePicker' });
+            pickerActive = true;
+            const btn = document.getElementById('pickElement');
+            if (btn) { btn.textContent = '✕ Cancel Pick'; btn.classList.add('active'); }
+        } catch (e) { console.error('Could not activate picker:', e); }
+    }
+
+    async function deactivatePicker() {
+        try {
+            const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+            if (tabs[0]) await browser.tabs.sendMessage(tabs[0].id, { type: 'deactivatePicker' }).catch(() => {});
+        } catch (_) {}
+        pickerActive = false;
+        const btn = document.getElementById('pickElement');
+        if (btn) { btn.textContent = '🎯 Pick Element'; btn.classList.remove('active'); }
+    }
+
+    const pickBtn = document.getElementById('pickElement');
+    if (pickBtn) {
+        pickBtn.addEventListener('click', () => {
+            if (pickerActive) { deactivatePicker(); } else { activatePicker(); }
+        });
+    }
+
+    // ── Cosmetic rules management ─────────────────────────────────────────
+    async function loadCosmeticRules(domain) {
+        if (!domain || domain === '-') return;
+        try {
+            const resp = await browser.runtime.sendMessage({ type: 'getCosmeticRules', domain });
+            const rules = resp?.rules || [];
+            const section = document.getElementById('cosmeticRulesSection');
+            const list = document.getElementById('cosmeticRulesList');
+            const count = document.getElementById('cosmeticRulesCount');
+            if (!section || !list || !count) return;
+            count.textContent = rules.length;
+            section.style.display = rules.length > 0 ? 'block' : 'none';
+            list.innerHTML = '';
+            rules.forEach(selector => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span title="${selector}">${selector}</span>`;
+                const del = document.createElement('button');
+                del.textContent = '×';
+                del.title = 'Remove rule';
+                del.addEventListener('click', async () => {
+                    await browser.runtime.sendMessage({ type: 'removeCosmeticRule', domain, selector });
+                    await loadCosmeticRules(domain);
+                });
+                li.appendChild(del);
+                list.appendChild(li);
+            });
+        } catch (e) { console.error('Error loading cosmetic rules:', e); }
+    }
+
+    const clearCosmeticBtn = document.getElementById('clearCosmeticRules');
+    if (clearCosmeticBtn) {
+        clearCosmeticBtn.addEventListener('click', async () => {
+            if (!currentDomain) return;
+            const resp = await browser.runtime.sendMessage({ type: 'getCosmeticRules', domain: currentDomain });
+            for (const selector of (resp?.rules || [])) {
+                await browser.runtime.sendMessage({ type: 'removeCosmeticRule', domain: currentDomain, selector });
+            }
+            await loadCosmeticRules(currentDomain);
+        });
+    }
+
+    // ── EasyList status & update ──────────────────────────────────────────
+    async function updateEasyListStatus() {
+        const { easyListCount = 0, easyListLastFetched = 0 } = await browser.storage.local.get({
+            easyListCount: 0, easyListLastFetched: 0
+        });
+        const statusEl = document.getElementById('easyListStatus');
+        const badge = document.getElementById('easyListBadge');
+        if (statusEl) {
+            if (easyListLastFetched === 0) {
+                statusEl.textContent = 'Not yet loaded';
+            } else {
+                const ageH = Math.round((Date.now() - easyListLastFetched) / 3_600_000);
+                statusEl.textContent = `${easyListCount.toLocaleString()} domains · updated ${ageH < 1 ? 'just now' : ageH + 'h ago'}`;
+            }
+        }
+        if (badge && easyListCount > 0) badge.textContent = easyListCount.toLocaleString();
+    }
+
+    updateEasyListStatus();
+
+    const refreshEasyListBtn = document.getElementById('refreshEasyList');
+    if (refreshEasyListBtn) {
+        refreshEasyListBtn.addEventListener('click', async () => {
+            refreshEasyListBtn.textContent = '↻ Updating...';
+            refreshEasyListBtn.disabled = true;
+            try {
+                const resp = await browser.runtime.sendMessage({ type: 'refreshEasyList' });
+                refreshEasyListBtn.textContent = `✓ ${(resp?.count || 0).toLocaleString()} domains`;
+                await updateEasyListStatus();
+                setTimeout(() => { refreshEasyListBtn.textContent = '↻ Update Now'; refreshEasyListBtn.disabled = false; }, 3000);
+            } catch (e) {
+                refreshEasyListBtn.textContent = '↻ Update Now';
+                refreshEasyListBtn.disabled = false;
+            }
+        });
+    }
+
+    // Handle exceptions list toggle (with DOM check)
+    const toggleExceptionsListBtn = document.getElementById('toggleExceptionsList');
+        if (toggleExceptionsListBtn) {
+            toggleExceptionsListBtn.addEventListener('click', (e) => {
+                const list = document.getElementById('exceptionsList');
+                if (list) {
+                    const isExpanded = list.classList.contains('expanded');
+                    list.classList.toggle('expanded');
+                    e.target.textContent = isExpanded ? 'Show All' : 'Hide';
+                }
+            });
+    }
     
-    // Handle view full report - show detailed stats in popup
-    document.getElementById('viewFullReport').addEventListener('click', () => {
+    // Handle manual exception entry (with DOM checks and validation)
+    const addManualExceptionBtn = document.getElementById('addManualException');
+        if (addManualExceptionBtn) {
+            addManualExceptionBtn.addEventListener('click', () => {
+                const manualEntry = document.getElementById('manualEntry');
+                if (manualEntry) {
+                    manualEntry.style.display = manualEntry.style.display === 'none' ? 'flex' : 'none';
+                    if (manualEntry.style.display === 'flex') {
+                        const manualDomainInput = document.getElementById('manualDomain');
+                        if (manualDomainInput) manualDomainInput.focus();
+                    }
+                }
+            });
+    }
+    
+    // Handle "Add" button for manual exceptions
+    const saveManualEntryBtn = document.getElementById('saveManualEntry');
+    if (saveManualEntryBtn) {
+        saveManualEntryBtn.addEventListener('click', async () => {
+            const input = document.getElementById('manualDomain');
+            if (!input) return;
+            const domain = input.value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase();
+            if (!domain) return;
+            try {
+                const { exceptions = [] } = await browser.storage.local.get({ exceptions: [] });
+                if (!exceptions.includes(domain)) {
+                    const updated = [...exceptions, domain];
+                    await browser.storage.local.set({ exceptions: updated });
+                    try { await browser.runtime.sendMessage({ type: 'exceptionsUpdated', exceptions: updated }); } catch (_) {}
+                    await updateExceptionsList();
+                }
+                input.value = '';
+                const manualEntry = document.getElementById('manualEntry');
+                if (manualEntry) manualEntry.style.display = 'none';
+            } catch (e) {
+                console.error('Error adding manual exception:', e);
+            }
+        });
+    }
+
+    // Handle Enter key in manual entry
+    const manualDomainInput = document.getElementById('manualDomain');
+    if (manualDomainInput) {
+        manualDomainInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const btn = document.getElementById('saveManualEntry');
+                if (btn) btn.click();
+            }
+        });
+    }
+
+    // Initial load of exceptions list
+    await updateExceptionsList();
+    
+    // Handle main toggle (with DOM check and state synchronization)
+    if (enableToggle) {
+        enableToggle.addEventListener('change', async (e) => {
+            await queueStateUpdate(async () => {
+                await browser.storage.local.set({ enabled: e.target.checked });
+                await browser.runtime.sendMessage({
+                    type: 'toggleBlocking',
+                    enabled: e.target.checked
+                });
+            });
+        });
+    }
+    
+    // Handle category toggles (with DOM checks and state synchronization)
+    if (blockAdsToggle) {
+        blockAdsToggle.addEventListener('change', async (e) => {
+            await queueStateUpdate(async () => {
+                await browser.runtime.sendMessage({
+                    type: 'updateCategorySettings',
+                    blockAds: e.target.checked
+                });
+                settings.blockAds = e.target.checked;
+            });
+        });
+    }
+    
+    if (blockTrackersToggle) {
+        blockTrackersToggle.addEventListener('change', async (e) => {
+            await queueStateUpdate(async () => {
+                await browser.runtime.sendMessage({
+                    type: 'updateCategorySettings',
+                    blockTrackers: e.target.checked
+                });
+                settings.blockTrackers = e.target.checked;
+            });
+        });
+    }
+    
+    if (blockSocialToggle) {
+        blockSocialToggle.addEventListener('change', async (e) => {
+            await queueStateUpdate(async () => {
+                await browser.runtime.sendMessage({
+                    type: 'updateCategorySettings',
+                    blockSocial: e.target.checked
+                });
+                settings.blockSocial = e.target.checked;
+            });
+        });
+    }
+    
+    if (blockMalwareToggle) {
+        blockMalwareToggle.addEventListener('change', async (e) => {
+            await queueStateUpdate(async () => {
+                await browser.runtime.sendMessage({
+                    type: 'updateCategorySettings',
+                    blockMalware: e.target.checked
+                });
+                settings.blockMalware = e.target.checked;
+            });
+        });
+    }
+    
+    if (cookieConsentToggle) {
+        cookieConsentToggle.addEventListener('change', async (e) => {
+            await queueStateUpdate(async () => {
+                await browser.runtime.sendMessage({
+                    type: 'updateCategorySettings',
+                    cookieConsent: e.target.checked
+                });
+                settings.cookieConsent = e.target.checked;
+            });
+        });
+    }
+    
+    if (antiFingerprintToggle) {
+        antiFingerprintToggle.addEventListener('change', async (e) => {
+            await queueStateUpdate(async () => {
+                await browser.runtime.sendMessage({
+                    type: 'updateCategorySettings',
+                    antiFingerprint: e.target.checked
+                });
+                settings.antiFingerprint = e.target.checked;
+            });
+        });
+    }
+    
+    // Handle export stats (with DOM check)
+    const exportStatsBtn = document.getElementById('exportStats');
+    if (exportStatsBtn) {
+        exportStatsBtn.addEventListener('click', async () => {
+            try {
+                const exportData = {
+                    stats: stats,
+                    settings: settings,
+                    exportDate: new Date().toISOString()
+                };
+                
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `adios-stats-${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error exporting stats:', error);
+                alert('Error exporting stats: ' + error.message);
+            }
+        });
+    }
+    
+    // Handle view full report - show detailed stats in popup (with DOM check)
+    const viewFullReportBtn = document.getElementById('viewFullReport');
+    if (viewFullReportBtn) {
+        viewFullReportBtn.addEventListener('click', () => {
         // Create a detailed report view
         const reportWindow = window.open('', '_blank', 'width=600,height=800');
         if (reportWindow) {
@@ -441,7 +899,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                         <div class="stat">
                             <h2>Top Blocked Domains</h2>
-                            ${Object.entries(stats.domainStats)
+                                ${Object.entries(stats.domainStats || {})
                                 .sort((a, b) => b[1] - a[1])
                                 .slice(0, 10)
                                 .map(([domain, count]) => `<div class="category">${domain}: ${count.toLocaleString()}</div>`)
@@ -452,15 +910,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </html>
             `);
             reportWindow.document.close();
-        }
-    });
-    
-    // Handle support button
-    document.getElementById('supportBtn').addEventListener('click', () => {
-        browser.tabs.create({
-            url: 'https://rossnicholson.dev'
+            }
         });
-    });
+    }
+    
+    // Handle support button (with DOM check)
+    const supportBtn = document.getElementById('supportBtn');
+    if (supportBtn) {
+        supportBtn.addEventListener('click', () => {
+            try {
+                browser.tabs.create({
+                    url: 'https://rossnicholson.dev'
+                });
+            } catch (error) {
+                console.error('Error opening support page:', error);
+            }
+        });
+    }
     
     // Smart Filter Presets
     const presetButtons = {
@@ -549,32 +1015,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateCustomRulesList() {
         if (!customRulesList) return;
         
-        if (customRules.length === 0) {
-            customRulesList.innerHTML = '<p class="empty-message">No custom rules. Click + to add one.</p>';
-            return;
-        }
-        
-        customRulesList.innerHTML = '';
-        customRules.forEach((rule, index) => {
-            const item = document.createElement('div');
-            item.className = 'custom-rule-item';
-            item.innerHTML = `
-                <span class="rule-pattern">${rule.pattern}</span>
-                <div class="rule-actions">
-                    <button class="rule-delete" data-index="${index}">✕</button>
-                </div>
-            `;
+        try {
+            if (customRules.length === 0) {
+                customRulesList.innerHTML = '<p class="empty-message">No custom rules. Click + to add one.</p>';
+                return;
+            }
             
-            const deleteBtn = item.querySelector('.rule-delete');
-            deleteBtn.addEventListener('click', async () => {
-                customRules.splice(index, 1);
-                await browser.storage.local.set({ customRules });
-                await browser.runtime.sendMessage({ type: 'customRulesUpdated', rules: customRules });
-                updateCustomRulesList();
+            customRulesList.innerHTML = '';
+            customRules.forEach((rule, index) => {
+                const item = document.createElement('div');
+                item.className = 'custom-rule-item';
+                
+                // Sanitize rule pattern to prevent XSS
+                const sanitizedPattern = String(rule.pattern || '').replace(/[<>]/g, '');
+                
+                item.innerHTML = `
+                    <span class="rule-pattern">${sanitizedPattern}</span>
+                    <div class="rule-actions">
+                        <button class="rule-delete" data-index="${index}">✕</button>
+                    </div>
+                `;
+                
+                const deleteBtn = item.querySelector('.rule-delete');
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', async () => {
+                        await queueStateUpdate(async () => {
+                            customRules.splice(index, 1);
+                            await browser.storage.local.set({ customRules });
+                            await browser.runtime.sendMessage({ type: 'customRulesUpdated', rules: customRules });
+                            updateCustomRulesList();
+                        });
+                    });
+                }
+                
+                customRulesList.appendChild(item);
             });
-            
-            customRulesList.appendChild(item);
-        });
+        } catch (error) {
+            console.error('Error updating custom rules list:', error);
+        }
     }
     
     // Rule Templates
@@ -626,13 +1104,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     if (addCustomRuleBtn) {
-        addCustomRuleBtn.addEventListener('click', () => {
+        addCustomRuleBtn.addEventListener('click', async () => {
             const pattern = prompt('Enter URL pattern to block (e.g., *://example.com/*):');
             if (pattern && pattern.trim()) {
-                customRules.push({ pattern: pattern.trim(), type: 'block' });
-                browser.storage.local.set({ customRules });
-                browser.runtime.sendMessage({ type: 'customRulesUpdated', rules: customRules });
-                updateCustomRulesList();
+                const trimmedPattern = pattern.trim();
+                
+                // Validate pattern
+                if (!validateRulePattern(trimmedPattern)) {
+                    alert('Invalid pattern format. Please use a valid URL pattern (e.g., *://example.com/*)');
+                    return;
+                }
+                
+                await queueStateUpdate(async () => {
+                    customRules.push({ pattern: trimmedPattern, type: 'block' });
+                    await browser.storage.local.set({ customRules });
+                    await browser.runtime.sendMessage({ type: 'customRulesUpdated', rules: customRules });
+                    updateCustomRulesList();
+                });
             }
         });
     }
@@ -653,44 +1141,62 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateSiteRulesList() {
         if (!siteRulesList) return;
         
-        if (siteSpecificRules.length === 0) {
-            siteRulesList.innerHTML = '<p class="empty-message">No site-specific rules. Create rules that apply only to specific domains.</p>';
-            return;
-        }
-        
-        siteRulesList.innerHTML = '';
-        siteSpecificRules.forEach((rule, index) => {
-            const item = document.createElement('div');
-            item.className = 'site-rule-item';
-            item.innerHTML = `
-                <div class="rule-info">
-                    <div class="rule-domain">${rule.domain}</div>
-                    <div style="font-size: 11px; color: var(--text-secondary);">
-                        ${rule.blockAds ? 'Ads' : ''} ${rule.blockTrackers ? 'Trackers' : ''} ${rule.blockSocial ? 'Social' : ''}
+        try {
+            if (siteSpecificRules.length === 0) {
+                siteRulesList.innerHTML = '<p class="empty-message">No site-specific rules. Create rules that apply only to specific domains.</p>';
+                return;
+            }
+            
+            siteRulesList.innerHTML = '';
+            siteSpecificRules.forEach((rule, index) => {
+                const item = document.createElement('div');
+                item.className = 'site-rule-item';
+                
+                // Sanitize domain to prevent XSS
+                const sanitizedDomain = String(rule.domain || '').replace(/[<>]/g, '');
+                
+                item.innerHTML = `
+                    <div class="rule-info">
+                        <div class="rule-domain">${sanitizedDomain}</div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">
+                            ${rule.blockAds ? 'Ads' : ''} ${rule.blockTrackers ? 'Trackers' : ''} ${rule.blockSocial ? 'Social' : ''}
+                        </div>
                     </div>
-                </div>
-                <div class="rule-actions">
-                    <button class="rule-delete" data-index="${index}">✕</button>
-                </div>
-            `;
-            
-            const deleteBtn = item.querySelector('.rule-delete');
-            deleteBtn.addEventListener('click', async () => {
-                siteSpecificRules.splice(index, 1);
-                await browser.storage.local.set({ siteSpecificRules });
-                await browser.runtime.sendMessage({ type: 'siteRulesUpdated', rules: siteSpecificRules });
-                updateSiteRulesList();
+                    <div class="rule-actions">
+                        <button class="rule-delete" data-index="${index}">✕</button>
+                    </div>
+                `;
+                
+                const deleteBtn = item.querySelector('.rule-delete');
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', async () => {
+                        await queueStateUpdate(async () => {
+                            siteSpecificRules.splice(index, 1);
+                            await browser.storage.local.set({ siteSpecificRules });
+                            await browser.runtime.sendMessage({ type: 'siteRulesUpdated', rules: siteSpecificRules });
+                            updateSiteRulesList();
+                        });
+                    });
+                }
+                
+                siteRulesList.appendChild(item);
             });
-            
-            siteRulesList.appendChild(item);
-        });
+        } catch (error) {
+            console.error('Error updating site rules list:', error);
+        }
     }
     
     if (addSiteRuleBtn) {
         addSiteRuleBtn.addEventListener('click', async () => {
             const domain = currentDomain !== '-' ? currentDomain : prompt('Enter domain (e.g., example.com):');
             if (domain && domain !== '-') {
-                const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+                // Validate domain
+                if (!validateDomain(domain)) {
+                    alert('Invalid domain format. Please enter a valid domain (e.g., example.com)');
+                    return;
+                }
+                
+                const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase();
                 
                 // Check if rule already exists
                 if (siteSpecificRules.find(r => r.domain === cleanDomain)) {
@@ -698,18 +1204,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
                 
-                const newRule = {
-                    domain: cleanDomain,
-                    blockAds: true,
-                    blockTrackers: true,
-                    blockSocial: false,
-                    blockMalware: true
-                };
-                
-                siteSpecificRules.push(newRule);
-                await browser.storage.local.set({ siteSpecificRules });
-                await browser.runtime.sendMessage({ type: 'siteRulesUpdated', rules: siteSpecificRules });
-                updateSiteRulesList();
+                await queueStateUpdate(async () => {
+                    const newRule = {
+                        domain: cleanDomain,
+                        blockAds: true,
+                        blockTrackers: true,
+                        blockSocial: false,
+                        blockMalware: true
+                    };
+                    
+                    siteSpecificRules.push(newRule);
+                    await browser.storage.local.set({ siteSpecificRules });
+                    await browser.runtime.sendMessage({ type: 'siteRulesUpdated', rules: siteSpecificRules });
+                    updateSiteRulesList();
+                });
             }
         });
     }
@@ -914,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </head>
                         <body>
                             <h1>Blocking History</h1>
-                            ${blockingHistory.reverse().map(item => `
+                            ${[...blockingHistory].reverse().map(item => `
                                 <div class="history-item">
                                     <div><strong>${item.domain}</strong></div>
                                     <div>Blocked: ${item.count} items</div>
@@ -990,18 +1498,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     if (exportFiltersBtn) {
         exportFiltersBtn.addEventListener('click', () => {
-            const exportData = {
-                filterLists: filterLists,
-                exportDate: new Date().toISOString(),
-                version: '1.0'
-            };
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `adios-filters-${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
+            try {
+                const exportData = {
+                    filterLists: filterLists,
+                    exportDate: new Date().toISOString(),
+                    version: '1.0'
+                };
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `adios-filters-${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error exporting filters:', error);
+                alert('Error exporting filters: ' + error.message);
+            }
         });
     }
     
@@ -1144,9 +1657,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 stats.monthlyStats = {};
                 
                 // Update UI
-                adsBlockedElement.textContent = '0';
-                trackersBlockedElement.textContent = '0';
-                dataSavedElement.textContent = '0 KB';
+                safeUpdateElement('adsBlocked', (el) => {
+                    el.textContent = '0';
+                });
+                safeUpdateElement('trackersBlocked', (el) => {
+                    el.textContent = '0';
+                });
+                safeUpdateElement('dataSaved', (el) => {
+                    el.textContent = '0 KB';
+                });
                 updateDashboard();
                 updateTimeStats(document.querySelector('.time-tab.active')?.dataset.period || 'today');
                 updatePerformanceMetrics();
@@ -1173,56 +1692,360 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     
-    // Refresh stats periodically
-    setInterval(async () => {
-        const response = await browser.runtime.sendMessage({ type: 'getStats' });
-        if (response) {
-            stats.totalBlocked = response.totalBlocked || 0;
-            stats.trackersBlocked = response.trackersBlocked || 0;
-            stats.adsBlocked = response.adsBlocked || 0;
-            stats.socialBlocked = response.socialBlocked || 0;
-            stats.malwareBlocked = response.malwareBlocked || 0;
-            stats.dataSaved = response.dataSaved || 0;
-            stats.domainStats = response.domainStats || {};
-            stats.dailyStats = response.dailyStats || {};
-            stats.weeklyStats = response.weeklyStats || {};
-            stats.monthlyStats = response.monthlyStats || {};
-            
-            adsBlockedElement.textContent = stats.adsBlocked.toLocaleString();
-            trackersBlockedElement.textContent = stats.trackersBlocked.toLocaleString();
-            dataSavedElement.textContent = formatBytes(stats.dataSaved);
-            updateDashboard();
-            updateTimeStats(document.querySelector('.time-tab.active')?.dataset.period || 'today');
-            updatePerformanceMetrics();
-            
-            // Update charts if visible
-            if (chartsVisible) {
-                const trendData = Object.values(stats.dailyStats)
-                    .slice(-7)
-                    .map(day => day.blocked || 0);
-                drawTrendChart('trendChart', trendData);
-                drawCategoryChart('categoryChart', {
-                    Ads: stats.adsBlocked,
-                    Trackers: stats.trackersBlocked,
-                    Social: stats.socialBlocked,
-                    Malware: stats.malwareBlocked
+    // Refresh stats periodically (store interval ID for cleanup)
+    const statsRefreshInterval = setInterval(async () => {
+        try {
+            const response = await browser.runtime.sendMessage({ type: 'getStats' });
+            if (response) {
+                stats.totalBlocked = response.totalBlocked || 0;
+                stats.trackersBlocked = response.trackersBlocked || 0;
+                stats.adsBlocked = response.adsBlocked || 0;
+                stats.socialBlocked = response.socialBlocked || 0;
+                stats.malwareBlocked = response.malwareBlocked || 0;
+                stats.dataSaved = response.dataSaved || 0;
+                stats.domainStats = response.domainStats || {};
+                stats.dailyStats = response.dailyStats || {};
+                stats.weeklyStats = response.weeklyStats || {};
+                stats.monthlyStats = response.monthlyStats || {};
+                
+                // Trim stats periodically
+                trimStatsIfNeeded(stats);
+                
+                safeUpdateElement('adsBlocked', (el) => {
+                    el.textContent = stats.adsBlocked.toLocaleString();
                 });
+                safeUpdateElement('trackersBlocked', (el) => {
+                    el.textContent = stats.trackersBlocked.toLocaleString();
+                });
+                safeUpdateElement('dataSaved', (el) => {
+                    el.textContent = formatBytes(stats.dataSaved);
+                });
+                
+                updateDashboard();
+                updateTimeStats(document.querySelector('.time-tab.active')?.dataset.period || 'today');
+                updatePerformanceMetrics();
+                
+                // Update charts if visible
+                if (chartsVisible) {
+                    const trendData = Object.values(stats.dailyStats)
+                        .slice(-7)
+                        .map(day => day.blocked || 0);
+                    drawTrendChart('trendChart', trendData);
+                    drawCategoryChart('categoryChart', {
+                        Ads: stats.adsBlocked,
+                        Trackers: stats.trackersBlocked,
+                        Social: stats.socialBlocked,
+                        Malware: stats.malwareBlocked
+                    });
+                }
+                
+                // Update network monitor if active
+                if (monitorActive && monitorBlockedElement) {
+                    monitorBlockedElement.textContent = monitorStats.blocked;
+                }
             }
-            
-            // Update network monitor if active
-            if (monitorActive && monitorBlockedElement) {
-                monitorBlockedElement.textContent = monitorStats.blocked;
-            }
+        } catch (error) {
+            console.error('Error refreshing stats:', error);
         }
     }, 2000);
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (statsRefreshInterval) {
+            clearInterval(statsRefreshInterval);
+        }
+    });
+    
+    // Debug/Troubleshooting Section
+    const debugSection = document.getElementById('debugSection');
+    const toggleDebugBtn = document.getElementById('toggleDebug');
+    const extensionStatus = document.getElementById('extensionStatus');
+    const blockingEnabled = document.getElementById('blockingEnabled');
+    const recentRequests = document.getElementById('recentRequests');
+    const testBlockingBtn = document.getElementById('testBlocking');
+    const testResult = document.getElementById('testResult');
+    let debugMode = false;
+    let requestLog = [];
+    const MAX_LOG_ENTRIES = 50;
+    
+    // Check extension status (defined inside try block)
+    async function checkExtensionStatus() {
+        try {
+            const response = await browser.runtime.sendMessage({ type: 'getStats' });
+            if (response) {
+                if (extensionStatus) {
+                    extensionStatus.textContent = '✓ Active';
+                    extensionStatus.style.color = 'var(--primary-color)';
+                }
+            } else {
+                if (extensionStatus) {
+                    extensionStatus.textContent = '✗ Not Responding';
+                    extensionStatus.style.color = 'red';
+                }
+            }
+        } catch (error) {
+            if (extensionStatus) {
+                extensionStatus.textContent = '✗ Error: ' + error.message;
+                extensionStatus.style.color = 'red';
+            }
+        }
+        
+        try {
+            // Check blocking enabled state
+            const data = await browser.storage.local.get({ enabled: true, settings: {} });
+            if (blockingEnabled) {
+                const enabled = data.enabled && (data.settings?.blockAds !== false);
+                blockingEnabled.textContent = enabled ? '✓ Yes' : '✗ No';
+                blockingEnabled.style.color = enabled ? 'var(--primary-color)' : 'red';
+            }
+        } catch (error) {
+            console.error('Error checking blocking status:', error);
+        }
+    }
+    
+    // Update recent requests display (defined inside try block)
+    function updateRecentRequests() {
+        if (!recentRequests) return;
+        
+        try {
+            if (requestLog.length === 0) {
+                recentRequests.innerHTML = '<p class="empty-message">No requests logged yet. Visit a page with ads to see activity.</p>';
+                return;
+            }
+            
+            recentRequests.innerHTML = '';
+            const recent = requestLog.slice(-10).reverse();
+            recent.forEach(entry => {
+                const item = document.createElement('div');
+                item.className = `request-entry ${entry.blocked ? 'blocked' : 'allowed'}`;
+                item.innerHTML = `
+                    <div class="request-status">${entry.blocked ? '🚫 BLOCKED' : '✓ Allowed'}</div>
+                    <div class="request-url" title="${entry.url}">${entry.domain || entry.url.substring(0, 50)}...</div>
+                    <div class="request-time">${new Date(entry.timestamp).toLocaleTimeString()}</div>
+                `;
+                recentRequests.appendChild(item);
+            });
+        } catch (error) {
+            console.error('Error updating recent requests:', error);
+        }
+    }
+    
+    // Test blocking (simplified)
+    if (testBlockingBtn) {
+        testBlockingBtn.addEventListener('click', async () => {
+            if (!testResult) return;
+            testResult.innerHTML = '<p style="color: var(--text-secondary);">Testing...</p>';
+            
+            try {
+                // Check if extension is working
+                const statsResponse = await browser.runtime.sendMessage({ type: 'getStats' });
+                const settingsResponse = await browser.storage.local.get({ enabled: true, settings: {} });
+                
+                let html = '<div class="test-results">';
+                
+                // Test 1: Extension responding
+                if (statsResponse) {
+                    html += `<div class="test-item blocked">
+                        <span>✓</span>
+                        <span>Extension is working</span>
+                    </div>`;
+                } else {
+                    html += `<div class="test-item not-blocked">
+                        <span>✗</span>
+                        <span>Extension not responding</span>
+                    </div>`;
+                }
+                
+                // Test 2: Blocking enabled
+                if (settingsResponse.enabled && settingsResponse.settings?.blockAds !== false) {
+                    html += `<div class="test-item blocked">
+                        <span>✓</span>
+                        <span>Ad blocking is enabled</span>
+                    </div>`;
+                } else {
+                    html += `<div class="test-item not-blocked">
+                        <span>✗</span>
+                        <span>Ad blocking is disabled - turn it on above!</span>
+                    </div>`;
+                }
+                
+                // Test 3: Stats showing activity
+                if (statsResponse && statsResponse.totalBlocked > 0) {
+                    html += `<div class="test-item blocked">
+                        <span>✓</span>
+                        <span>Has blocked ${statsResponse.totalBlocked} items</span>
+                    </div>`;
+                } else {
+                    html += `<div class="test-item not-blocked">
+                        <span>ℹ️</span>
+                        <span>No items blocked yet - visit a website with ads</span>
+                    </div>`;
+                }
+                
+                html += '</div>';
+                testResult.innerHTML = html;
+            } catch (error) {
+                testResult.innerHTML = `<p style="color: var(--danger-color);">Error: ${error.message}</p>`;
+            }
+        });
+    }
+    
+    // Listen for request logs from background script
+    browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.type === 'requestLog') {
+            requestLog.push({
+                url: message.url,
+                domain: message.domain,
+                blocked: message.blocked,
+                timestamp: Date.now()
+            });
+            
+            // Keep only recent entries
+            if (requestLog.length > MAX_LOG_ENTRIES) {
+                requestLog = requestLog.slice(-MAX_LOG_ENTRIES);
+            }
+            
+            updateRecentRequests();
+        }
+        return true; // Keep channel open for async response
+    });
+    
+    // Show debug section (collapsed by default to save space)
+    if (debugSection) {
+        debugSection.style.display = 'block';
+        // Collapse debug content by default
+        const debugContent = document.getElementById('debugContent');
+        if (debugContent) {
+            debugContent.style.display = 'none';
+        }
+        // Update button text
+        if (toggleDebugBtn) {
+            toggleDebugBtn.textContent = 'Show Details';
+        }
+    }
+    
+    // Simple toggle - just show/hide the troubleshooting details
+    if (toggleDebugBtn) {
+        toggleDebugBtn.addEventListener('click', (e) => {
+            const debugContent = document.getElementById('debugContent');
+            if (debugContent) {
+                const isVisible = debugContent.style.display !== 'none';
+                debugContent.style.display = isVisible ? 'none' : 'block';
+                toggleDebugBtn.textContent = isVisible ? 'Show Details' : 'Hide Details';
+            }
+        });
+    }
+    
+    // Initial status check
+    checkExtensionStatus();
+    setInterval(checkExtensionStatus, 5000); // Check every 5 seconds
+    updateRecentRequests();
+
+    // ── Live Log Viewer ───────────────────────────────────────────────────
+    let liveLogActive = false;
+    let liveLogInterval = null;
+    let lastLogTs = 0;
+    let allLogEntries = [];
+
+    const liveLogToggle  = document.getElementById('liveLogToggle');
+    const liveLogLabel   = document.getElementById('liveLogLabel');
+    const liveLogsPanel  = document.getElementById('liveLogsPanel');
+    const liveLogEntries = document.getElementById('liveLogEntries');
+    const logLevelFilter = document.getElementById('logLevelFilter');
+    const logDomainFilter = document.getElementById('logDomainFilter');
+
+    function renderLogs() {
+        if (!liveLogEntries) return;
+        const levelF  = logLevelFilter?.value  || '';
+        const domainF = (logDomainFilter?.value || '').toLowerCase();
+        const filtered = allLogEntries.filter(e => {
+            if (levelF  && e.level !== levelF)        return false;
+            if (domainF && !e.msg.toLowerCase().includes(domainF)) return false;
+            return true;
+        });
+        liveLogEntries.innerHTML = filtered.slice(-100).map(e => {
+            const t = new Date(e.ts).toTimeString().slice(0, 8);
+            const msgEsc = e.msg.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `<div class="log-entry"><span class="log-ts">${t}</span><span class="log-level ${e.level}">${e.level}</span><span class="log-msg">${msgEsc}</span></div>`;
+        }).join('');
+        liveLogEntries.scrollTop = liveLogEntries.scrollHeight;
+    }
+
+    async function fetchLogs() {
+        try {
+            const resp = await browser.runtime.sendMessage({
+                type: 'getLogs',
+                since: lastLogTs,
+                domain: logDomainFilter?.value || ''
+            });
+            if (resp?.logs?.length) {
+                allLogEntries.push(...resp.logs);
+                if (allLogEntries.length > 500) allLogEntries = allLogEntries.slice(-500);
+                lastLogTs = allLogEntries[allLogEntries.length - 1].ts;
+                renderLogs();
+            }
+        } catch (_) {}
+    }
+
+    function startLiveLogs() {
+        liveLogActive = true;
+        if (liveLogsPanel) liveLogsPanel.style.display = 'block';
+        if (liveLogLabel)  liveLogLabel.textContent = 'Live';
+        fetchLogs(); // immediate first fetch
+        liveLogInterval = setInterval(fetchLogs, 1500);
+    }
+
+    function stopLiveLogs() {
+        liveLogActive = false;
+        if (liveLogInterval) { clearInterval(liveLogInterval); liveLogInterval = null; }
+        if (liveLogsPanel) liveLogsPanel.style.display = 'none';
+        if (liveLogLabel)  liveLogLabel.textContent = 'Off';
+    }
+
+    if (liveLogToggle) {
+        liveLogToggle.addEventListener('change', () => {
+            if (liveLogToggle.checked) startLiveLogs(); else stopLiveLogs();
+        });
+    }
+
+    if (logLevelFilter)  logLevelFilter.addEventListener('change', renderLogs);
+    if (logDomainFilter) logDomainFilter.addEventListener('input',  renderLogs);
+
+    document.getElementById('clearLogs')?.addEventListener('click', async () => {
+        allLogEntries = [];
+        lastLogTs = 0;
+        await browser.runtime.sendMessage({ type: 'clearLogs' }).catch(() => {});
+        if (liveLogEntries) liveLogEntries.innerHTML = '';
+    });
+
+    document.getElementById('copyLogs')?.addEventListener('click', () => {
+        const text = allLogEntries.map(e => `${new Date(e.ts).toISOString()} [${e.level}] ${e.msg}`).join('\n');
+        navigator.clipboard.writeText(text).catch(() => {
+            // fallback: show in alert
+            alert(text.slice(0, 2000));
+        });
+    });
+
+    } catch (error) {
+        console.error('Error initializing popup:', error);
+        // Show error to user
+        const container = document.querySelector('.container');
+        if (container) {
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = 'padding: 16px; background: #ff3b30; color: white; border-radius: 8px; margin: 16px 0;';
+            errorDiv.innerHTML = '<strong>Error loading extension:</strong><br>' + error.message + '<br><br>Please try reloading the extension.';
+            container.insertBefore(errorDiv, container.firstChild);
+        }
+    }
 });
 
 function formatBytes(bytes) {
-    if (bytes === 0) return '0 KB';
+    if (!bytes || bytes <= 0) return '0 B';
     const k = 1024;
-    const sizes = ['KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+    if (i === 0) return bytes + ' B';
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
 // Performance Metrics
@@ -1233,23 +2056,25 @@ let performanceData = {
 };
 
 async function updatePerformanceMetrics() {
-    const loadSpeedElement = document.getElementById('loadSpeed');
-    const batterySavedElement = document.getElementById('batterySaved');
-    
-    if (!loadSpeedElement || !batterySavedElement) return;
-    
-    // Calculate average page load improvement
-    const avgLoadTime = performanceData.pageLoadTimes.length > 0
-        ? performanceData.pageLoadTimes.reduce((a, b) => a + b, 0) / performanceData.pageLoadTimes.length
-        : performanceData.baselineLoadTime;
-    
-    const improvement = ((performanceData.baselineLoadTime - avgLoadTime) / performanceData.baselineLoadTime) * 100;
-    loadSpeedElement.textContent = improvement > 0 ? `+${Math.round(improvement)}%` : '0%';
-    loadSpeedElement.style.color = improvement > 0 ? 'var(--primary-color)' : 'var(--text-secondary)';
-    
-    // Estimate battery savings (rough calculation)
-    const estimatedBatterySaved = Math.min(15, Math.round((stats.totalBlocked / 100) * 0.5));
-    batterySavedElement.textContent = `${estimatedBatterySaved}%`;
+    try {
+        const loadSpeedElement = document.getElementById('loadSpeed');
+        const batterySavedElement = document.getElementById('batterySaved');
+        if (!loadSpeedElement || !batterySavedElement) return;
+
+        // Calculate average page load improvement
+        const avgLoadTime = performanceData.pageLoadTimes.length > 0
+            ? performanceData.pageLoadTimes.reduce((a, b) => a + b, 0) / performanceData.pageLoadTimes.length
+            : performanceData.baselineLoadTime;
+        const improvement = ((performanceData.baselineLoadTime - avgLoadTime) / performanceData.baselineLoadTime) * 100;
+        loadSpeedElement.textContent = improvement > 0 ? `+${Math.round(improvement)}%` : '0%';
+
+        // Read totalBlocked from storage directly to avoid scope dependency
+        const { totalBlocked = 0 } = await browser.storage.local.get({ totalBlocked: 0 });
+        const estimatedBatterySaved = Math.min(15, Math.round((totalBlocked / 100) * 0.5));
+        batterySavedElement.textContent = `${estimatedBatterySaved}%`;
+    } catch (error) {
+        console.error('Error updating performance metrics:', error);
+    }
 }
 
 // Chart Drawing Functions
@@ -1281,25 +2106,30 @@ function drawTrendChart(canvasId, data) {
     const padding = 20;
     const chartWidth = width - padding * 2;
     const chartHeight = height - padding * 2;
-    
+    // Guard: single point or all-zero data
+    const safeMax = maxValue > 0 ? maxValue : 1;
+    const xOf = (index) => data.length > 1
+        ? padding + (index / (data.length - 1)) * chartWidth
+        : padding + chartWidth / 2;
+    const yOf = (value) => height - padding - (value / safeMax) * chartHeight;
+
     data.forEach((value, index) => {
-        const x = padding + (index / (data.length - 1)) * chartWidth;
-        const y = height - padding - (value / maxValue) * chartHeight;
-        
+        const x = xOf(index);
+        const y = yOf(value);
         if (index === 0) {
             ctx.moveTo(x, y);
         } else {
             ctx.lineTo(x, y);
         }
     });
-    
+
     ctx.stroke();
-    
+
     // Draw points
-    ctx.fillStyle = 'var(--primary-color)';
+    ctx.fillStyle = '#30D158';
     data.forEach((value, index) => {
-        const x = padding + (index / (data.length - 1)) * chartWidth;
-        const y = height - padding - (value / maxValue) * chartHeight;
+        const x = xOf(index);
+        const y = yOf(value);
         ctx.beginPath();
         ctx.arc(x, y, 3, 0, Math.PI * 2);
         ctx.fill();

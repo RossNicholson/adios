@@ -95,6 +95,42 @@
             </div>
         </div>
 
+        <!-- Debug/Troubleshooting Section -->
+        <div class="debug-section" id="debugSection" style="display: block;">
+            <div class="debug-header">
+                <h3>🔍 Troubleshooting</h3>
+                <button id="toggleDebug" class="debug-toggle">Show Details</button>
+            </div>
+            <div class="debug-content" id="debugContent" style="display: none;">
+                <div class="debug-item">
+                    <strong>Extension Status:</strong>
+                    <span id="extensionStatus">Checking...</span>
+                    <p class="debug-hint">Shows if the extension is working properly</p>
+                </div>
+                <div class="debug-item">
+                    <strong>Blocking Enabled:</strong>
+                    <span id="blockingEnabled">-</span>
+                    <p class="debug-hint">Shows if ad blocking is currently active</p>
+                </div>
+                <div class="debug-item">
+                    <strong>Quick Test:</strong>
+                    <button id="testBlocking" class="test-btn">Test if Blocking Works</button>
+                    <div id="testResult" class="test-result"></div>
+                    <p class="debug-hint">Click this button to test if the extension can block Google ads</p>
+                </div>
+                <div class="debug-item">
+                    <strong>Need More Help?</strong>
+                    <p class="debug-hint">If ads are still showing:</p>
+                    <ol class="debug-steps">
+                        <li>Make sure "Ad Blocking" toggle at the top is ON (green)</li>
+                        <li>Make sure "Ads" is checked in Blocking Categories</li>
+                        <li>Check if the website is in your Exceptions list</li>
+                        <li>Try refreshing the webpage</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
         <div class="performance-metrics">
             <h3>Performance Impact</h3>
             <div class="metric-grid">
@@ -148,12 +184,69 @@
 
         <div class="current-site">
             <h2>Current Site</h2>
+
+            <!-- Broken page warning banner -->
+            <div id="brokenPageWarning" class="broken-page-warning" style="display:none;">
+                <span class="warning-icon">⚠️</span>
+                <span id="brokenPageText">High block rate on this site — content may be affected.</span>
+                <button id="brokenPageFix" class="warning-fix-btn">Fix</button>
+            </div>
+
             <div class="site-stats">
                 <span id="currentDomain">-</span>
                 <span id="siteBlockCount">0 ads blocked</span>
-                <button id="toggleException" class="exception-button">
-                    Allow Ads on This Site
-                </button>
+                <div class="site-action-row">
+                    <button id="toggleException" class="exception-button">Allow Ads on This Site</button>
+                    <button id="pickElement" class="pick-element-btn" title="Click any element on the page to permanently hide it">🎯 Pick Element</button>
+                </div>
+            </div>
+
+            <!-- Per-site category overrides -->
+            <div class="site-overrides" id="siteOverrides">
+                <div class="site-overrides-header">
+                    <span class="site-overrides-title">Override for this site</span>
+                    <button id="resetSiteOverrides" class="reset-overrides-btn" style="display:none;">Reset to global</button>
+                </div>
+                <div class="site-override-row">
+                    <label class="switch-small">
+                        <input type="checkbox" id="siteBlockAds" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span>Block Ads</span>
+                    <span class="override-hint" id="siteBlockAdsHint"></span>
+                </div>
+                <div class="site-override-row">
+                    <label class="switch-small">
+                        <input type="checkbox" id="siteBlockTrackers" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span>Block Trackers</span>
+                    <span class="override-hint" id="siteBlockTrackersHint"></span>
+                </div>
+                <div class="site-override-row">
+                    <label class="switch-small">
+                        <input type="checkbox" id="siteBlockSocial" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span>Block Social Embeds</span>
+                    <span class="override-hint" id="siteBlockSocialHint"></span>
+                </div>
+                <div class="site-override-row">
+                    <label class="switch-small">
+                        <input type="checkbox" id="siteCookieConsent" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span>Auto-dismiss Cookies</span>
+                </div>
+            </div>
+
+            <!-- User cosmetic rules for this site -->
+            <div class="cosmetic-rules" id="cosmeticRulesSection" style="display:none;">
+                <div class="cosmetic-rules-header">
+                    <span>Hidden Elements (<span id="cosmeticRulesCount">0</span>)</span>
+                    <button id="clearCosmeticRules" class="reset-overrides-btn">Clear All</button>
+                </div>
+                <ul id="cosmeticRulesList"></ul>
             </div>
         </div>
 
@@ -335,13 +428,14 @@
                         <span class="slider round"></span>
                     </label>
                     <span>EasyList</span>
+                    <span class="filter-list-badge" id="easyListBadge"></span>
                 </div>
                 <div class="filter-list-item">
                     <label class="switch-small">
                         <input type="checkbox" id="filterPrivacyList" checked>
                         <span class="slider round"></span>
                     </label>
-                    <span>Privacy List</span>
+                    <span>EasyPrivacy</span>
                 </div>
                 <div class="filter-list-item">
                     <label class="switch-small">
@@ -350,6 +444,39 @@
                     </label>
                     <span>Malware Domains</span>
                 </div>
+            </div>
+            <div class="filter-list-status">
+                <span id="easyListStatus">Checking...</span>
+                <button id="refreshEasyList" class="filter-btn">↻ Update Now</button>
+            </div>
+        </div>
+
+        <!-- Live Log Viewer -->
+        <div class="live-logs-section">
+            <div class="live-logs-header">
+                <h3>🔬 Live Logs</h3>
+                <div class="live-logs-controls">
+                    <label class="switch-small">
+                        <input type="checkbox" id="liveLogToggle">
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="live-log-label" id="liveLogLabel">Off</span>
+                    <button id="clearLogs" class="filter-btn">Clear</button>
+                    <button id="copyLogs" class="filter-btn">Copy</button>
+                </div>
+            </div>
+            <div id="liveLogsPanel" style="display:none;">
+                <div class="live-log-filter-row">
+                    <select id="logLevelFilter" class="log-level-select">
+                        <option value="">All</option>
+                        <option value="BLOCK">Blocked only</option>
+                        <option value="ANTI">Anti-adblock</option>
+                        <option value="PAGE">Page events</option>
+                    </select>
+                    <input type="text" id="logDomainFilter" placeholder="Filter by domain..." class="log-domain-input">
+                </div>
+                <div id="liveLogEntries" class="live-log-entries"></div>
+                <p class="live-log-hint">Reload the page you want to inspect, then watch logs appear here.</p>
             </div>
         </div>
 
