@@ -1,5 +1,5 @@
 cask "adios" do
-  version "1.1"
+  version "0.1.0"
   sha256 "" # auto-populated by CI on each release
 
   url "https://github.com/rossnicholson/adios/releases/download/v#{version}/Adios-#{version}.dmg"
