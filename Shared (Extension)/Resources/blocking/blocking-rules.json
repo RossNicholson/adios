@@ -24,7 +24,7 @@
                 "*media.net",
                 "*adservetx.media.net"
             ],
-            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup", "xmlhttprequest"]
+            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup"]
         },
         "action": {
             "type": "block"
@@ -65,7 +65,7 @@
                 "*settings.luckyorange.net",
                 "*stats.wp.com"
             ],
-            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup", "xmlhttprequest"]
+            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup"]
         },
         "action": {
             "type": "block"
@@ -82,7 +82,7 @@
                 "*browser.sentry-cdn.com",
                 "*app.getsentry.com"
             ],
-            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup", "xmlhttprequest"]
+            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup"]
         },
         "action": {
             "type": "block"
@@ -113,7 +113,7 @@
                 "*ads.tiktok.com",
                 "*log.byteoversea.com"
             ],
-            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup", "xmlhttprequest"]
+            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup"]
         },
         "action": {
             "type": "block"
@@ -144,7 +144,7 @@
                 "*config.unityads.unity3d.com",
                 "*adserver.unityads.unity3d.com"
             ],
-            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup", "xmlhttprequest"]
+            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup"]
         },
         "action": {
             "type": "block"
@@ -190,7 +190,7 @@
                 "*weather-analytics-events.apple.com",
                 "*notes-analytics-events.apple.com"
             ],
-            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup", "xmlhttprequest"]
+            "resource-type": ["script", "image", "style-sheet", "raw", "document", "media", "popup"]
         },
         "action": {
             "type": "block"

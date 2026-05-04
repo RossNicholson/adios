@@ -1,10 +1,6 @@
 import Foundation
-import os.log
-#if os(iOS)
-import MobileCoreServices
-#elseif os(macOS)
 import CoreServices
-#endif
+import os.log
 
 extension OSLog {
     static let contentBlocker = OSLog(subsystem: "dev.rossnicholson.Adios", category: "ContentBlocker")
@@ -52,4 +48,4 @@ class ContentBlockerRequestHandler: NSObject, NSExtensionRequestHandling {
         os_log(.info, log: .contentBlocker, "Successfully loaded %d blocking rules", rules.count)
         context.completeRequest(returningItems: [item], completionHandler: nil)
     }
-} 
+}

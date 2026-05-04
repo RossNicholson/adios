@@ -431,6 +431,101 @@ browser.webRequest.onBeforeRequest.addListener(
             
             debugLog('Checking URL:', details.url, 'Domain:', domain);
             
+            // Don't block essential page resources - always allow main document, CSS, and fonts
+            if (details.type === 'main_frame' || 
+                details.type === 'stylesheet' ||
+                details.type === 'font') {
+                return { cancel: false };
+            }
+            
+            // Get the origin domain to check if this is a first-party resource
+            let originDomain = '';
+            if (details.originUrl) {
+                try {
+                    originDomain = new URL(details.originUrl).hostname.toLowerCase();
+                } catch (e) {
+                    // Invalid origin URL
+                }
+            } else if (details.documentUrl) {
+                try {
+                    originDomain = new URL(details.documentUrl).hostname.toLowerCase();
+                } catch (e) {
+                    // Invalid document URL
+                }
+            }
+            
+            // NEVER block first-party resources (same domain as the page)
+            // This ensures pages can load their own JavaScript, images, API calls, and other assets
+            if (originDomain && domain === originDomain) {
+                debugLog('First-party resource, allowing:', details.url);
+                return { cancel: false };
+            }
+            
+            // Also allow subdomains of the same site (e.g., api.example.com for example.com)
+            if (originDomain && domain) {
+                const baseDomain = originDomain.replace(/^www\./, '');
+                const requestBaseDomain = domain.replace(/^www\./, '');
+                if (domain.endsWith('.' + baseDomain) || baseDomain.endsWith('.' + requestBaseDomain) || 
+                    domain === baseDomain || requestBaseDomain === baseDomain) {
+                    debugLog('Same-site resource (subdomain), allowing:', details.url);
+                    return { cancel: false };
+                }
+            }
+            
+            // Don't block JavaScript files unless they're clearly from ad/tracker domains
+            // Many sites need third-party JS libraries (jQuery, React, etc.) that aren't ads
+            if (details.type === 'script') {
+                // Only block scripts if they're from known ad/tracker domains
+                const isKnownAdDomain = domain.includes('doubleclick') || 
+                                       domain.includes('googleadservices') ||
+                                       domain.includes('googlesyndication') ||
+                                       domain.includes('adservice') ||
+                                       domain.includes('adserver') ||
+                                       domain.includes('adsystem') ||
+                                       domain.includes('advertising') ||
+                                       urlString.includes('/ads/') ||
+                                       urlString.includes('/ad/') ||
+                                       urlString.includes('googlead') ||
+                                       urlString.includes('adsbygoogle');
+                
+                if (!isKnownAdDomain) {
+                    // Allow scripts from CDNs and common libraries (cloudflare, jsdelivr, unpkg, etc.)
+                    const isCDN = domain.includes('cdn') || 
+                                 domain.includes('cloudflare') ||
+                                 domain.includes('jsdelivr') ||
+                                 domain.includes('unpkg') ||
+                                 domain.includes('cdnjs') ||
+                                 domain.includes('ajax.googleapis.com') ||
+                                 domain.includes('ajax.aspnetcdn.com');
+                    
+                    if (isCDN) {
+                        debugLog('CDN script, allowing:', details.url);
+                        return { cancel: false };
+                    }
+                }
+            }
+            
+            // Don't block XMLHttpRequest/fetch requests unless they're clearly ads/trackers
+            // These are often needed for dynamic content loading
+            if (details.type === 'xmlhttprequest' || details.type === 'other') {
+                // Only block if it's clearly an ad/tracker endpoint
+                const isAdEndpoint = urlString.includes('/ads/') ||
+                                   urlString.includes('/ad/') ||
+                                   urlString.includes('/tracking/') ||
+                                   urlString.includes('/track/') ||
+                                   urlString.includes('/analytics') ||
+                                   urlString.includes('/pixel') ||
+                                   domain.includes('doubleclick') ||
+                                   domain.includes('googleadservices') ||
+                                   domain.includes('googlesyndication');
+                
+                if (!isAdEndpoint) {
+                    // Allow API calls and other requests needed for content
+                    debugLog('API/Content request, allowing:', details.url);
+                    return { cancel: false };
+                }
+            }
+            
             // Don't block if URL contains cookie-related paths (unless cookie consent is enabled)
             if (!settings.cookieConsent && (url.pathname.toLowerCase().includes('cookie') || 
                 url.pathname.toLowerCase().includes('consent') ||
@@ -439,8 +534,6 @@ browser.webRequest.onBeforeRequest.addListener(
             }
 
             // Check exceptions
-            const originDomain = details.originUrl ? new URL(details.originUrl).hostname : '';
-            
             // Don't block if site is in exceptions
             if (settings.exceptions && settings.exceptions.length > 0 &&
                 (settings.exceptions.includes(domain) || 

@@ -9,7 +9,7 @@ let bodyObserver = null;
 let urlCheckInterval = null;
 let debounceTimer = null;
 
-// Function to remove ad elements
+// Function to remove ad elements - more conservative to avoid removing legitimate content
 function removeAds(selectors) {
     if (!selectors || selectors.length === 0) return;
     
@@ -19,40 +19,91 @@ function removeAds(selectors) {
             const elements = document.querySelectorAll(selector);
             elements.forEach(element => {
                 try {
+                    // NEVER remove main content elements
+                    const tagName = element.tagName;
+                    const elementClass = (element.className || '').toLowerCase();
+                    const elementId = (element.id || '').toLowerCase();
+                    
+                    // Skip if it's a main content element
+                    if (tagName === 'MAIN' || 
+                        tagName === 'ARTICLE' || 
+                        tagName === 'BODY' ||
+                        elementClass.includes('main-content') ||
+                        elementClass.includes('page-content') ||
+                        elementClass.includes('article-content') ||
+                        elementId === 'content' ||
+                        elementId === 'main' ||
+                        elementId === 'articles') {
+                        return; // Skip - this is legitimate content
+                    }
+                    
+                    // Check size - don't remove large content areas
+                    const rect = element.getBoundingClientRect();
+                    const isLargeContent = rect.width > window.innerWidth * 0.5 && rect.height > window.innerHeight * 0.3;
+                    if (isLargeContent && !elementClass.includes('ad') && !elementId.includes('ad')) {
+                        return; // Skip large content that's not clearly an ad
+                    }
+                    
                     // Check if element contains Google Chrome ad text
                     const text = element.textContent || '';
                     if (text.includes('Switch to Google Chrome') || 
                         text.includes('Browse securely with Chrome') ||
                         (text.includes('Google Chrome') && (text.includes('Switch') || text.includes('Browse securely')))) {
-                        element.remove();
-                        removedCount++;
+                        // Only remove if it's small (likely a banner) or has ad indicators
+                        if (!isLargeContent || elementClass.includes('ad') || elementId.includes('ad')) {
+                            element.remove();
+                            removedCount++;
+                        }
                         return;
                     }
                     
-                    // Check parent elements for ad indicators
+                    // Only remove if element has clear ad indicators
+                    const hasAdIndicator = elementClass.includes('ad') || 
+                                          elementId.includes('ad') ||
+                                          elementClass.includes('advertisement') ||
+                                          elementId.includes('advertisement') ||
+                                          element.querySelector('iframe[src*="doubleclick"]') ||
+                                          element.querySelector('iframe[src*="googlesyndication"]') ||
+                                          element.querySelector('ins.adsbygoogle');
+                    
+                    if (!hasAdIndicator) {
+                        return; // Skip - no clear ad indicators
+                    }
+                    
+                    // Check parent elements for ad indicators (but be more careful)
                     let parent = element.parentElement;
                     let depth = 0;
-                    while (parent && depth < 3) {
-                        const parentText = parent.textContent || '';
-                        const parentClass = parent.className || '';
-                        const parentId = parent.id || '';
+                    while (parent && depth < 2) { // Reduced depth check
+                        const parentTag = parent.tagName;
+                        const parentText = (parent.textContent || '').toLowerCase();
+                        const parentClass = (parent.className || '').toLowerCase();
+                        const parentId = (parent.id || '').toLowerCase();
                         
-                        if (parentText.includes('Switch to Google Chrome') ||
-                            parentText.includes('Browse securely with Chrome') ||
-                            parentClass.includes('ad') ||
-                            parentId.includes('ad') ||
-                            parentClass.includes('banner') ||
-                            parentId.includes('banner')) {
-                            parent.remove();
-                            removedCount++;
+                        // Don't remove if parent is main content
+                        if (parentTag === 'MAIN' || parentTag === 'ARTICLE' || parentTag === 'BODY') {
+                            return; // Stop - don't remove main content
+                        }
+                        
+                        if (parentText.includes('switch to google chrome') ||
+                            parentText.includes('browse securely with chrome') ||
+                            (parentClass.includes('ad') && !parentClass.includes('content')) ||
+                            (parentId.includes('ad') && !parentId.includes('content'))) {
+                            // Only remove parent if it's clearly an ad container
+                            if (!parentClass.includes('content') && !parentId.includes('content')) {
+                                parent.remove();
+                                removedCount++;
+                            }
                             return;
                         }
                         parent = parent.parentElement;
                         depth++;
                     }
                     
-                    element.remove();
-                    removedCount++;
+                    // Only remove if we have clear ad indicators
+                    if (hasAdIndicator) {
+                        element.remove();
+                        removedCount++;
+                    }
                 } catch (e) {
                     // Element may have already been removed
                 }
@@ -62,18 +113,33 @@ function removeAds(selectors) {
         }
     });
     
-    // Also look for Google Chrome ads by text content
+    // Also look for Google Chrome ads by text content (more conservative)
     if (removedCount === 0) {
         try {
-            const allDivs = document.querySelectorAll('div, a, section, article');
+            const allDivs = document.querySelectorAll('div, a, section');
             allDivs.forEach(el => {
+                // Skip main content elements
+                if (el.tagName === 'ARTICLE' || 
+                    el.tagName === 'MAIN' ||
+                    (el.className || '').toLowerCase().includes('content') ||
+                    (el.id || '').toLowerCase().includes('content')) {
+                    return;
+                }
+                
                 const text = el.textContent || '';
+                const rect = el.getBoundingClientRect();
+                const isLarge = rect.width > window.innerWidth * 0.4 || rect.height > window.innerHeight * 0.3;
+                
+                if (isLarge) {
+                    return; // Skip large elements
+                }
+                
                 if ((text.includes('Switch to Google Chrome') || 
                      text.includes('Browse securely with Chrome')) &&
                     (el.querySelector('a[href*="chrome"]') || 
                      el.querySelector('a[href*="google.com/chrome"]') ||
-                     el.className.includes('ad') ||
-                     el.id.includes('ad'))) {
+                     (el.className || '').includes('ad') ||
+                     (el.id || '').includes('ad'))) {
                     try {
                         el.remove();
                         removedCount++;
@@ -103,22 +169,24 @@ function blockCookieConsent() {
     
     cookieConsentAttempts++;
     
-    // Common cookie consent selectors
+    // More specific cookie consent selectors - avoid matching page content
     const cookieSelectors = [
         '#cookie-banner',
         '#cookie-consent',
+        '#cookie-notice',
         '.cookie-consent',
         '.cookie-banner',
         '.cookie-notice',
-        '[id*="cookie"]',
+        '[id="cookie-banner"]',
+        '[id="cookie-consent"]',
+        '[id="cookie-notice"]',
         '[class*="cookie-consent"]',
         '[class*="cookie-banner"]',
         '[class*="cookie-notice"]',
-        '[id*="consent"]',
-        '[class*="consent-banner"]',
-        '[data-testid*="cookie"]',
-        '[aria-label*="cookie" i]',
-        '[aria-label*="consent" i]'
+        '[data-testid*="cookie-banner"]',
+        '[data-testid*="cookie-consent"]',
+        '[aria-label*="cookie" i][role="dialog"]',
+        '[aria-label*="cookie" i][role="banner"]'
     ];
     
     let foundBanner = false;
@@ -127,9 +195,60 @@ function blockCookieConsent() {
         try {
             const elements = document.querySelectorAll(selector);
             elements.forEach(element => {
-                // Check if it's likely a cookie consent banner
+                // More strict checks to ensure it's actually a cookie banner, not page content
                 const text = element.textContent.toLowerCase();
-                if (text.includes('cookie') || text.includes('consent') || text.includes('accept') || text.includes('gdpr')) {
+                const elementId = (element.id || '').toLowerCase();
+                const elementClass = (element.className || '').toLowerCase();
+                
+                // Skip if this looks like main page content (too large, contains navigation, etc.)
+                const rect = element.getBoundingClientRect();
+                const isLargeContent = rect.width > window.innerWidth * 0.6 && rect.height > window.innerHeight * 0.3;
+                const hasNavigation = (text.includes('home') || text.includes('about') || text.includes('contact')) && 
+                                    (text.includes('news') || text.includes('article') || text.includes('guide')) && 
+                                    text.length > 300;
+                const isMainContent = element.tagName === 'MAIN' || 
+                                     element.tagName === 'ARTICLE' ||
+                                     element.tagName === 'BODY' ||
+                                     (element.tagName === 'DIV' && elementClass.includes('content') && !elementClass.includes('banner') && !elementClass.includes('overlay')) ||
+                                     (element.tagName === 'DIV' && elementId.includes('content') && !elementId.includes('banner') && !elementId.includes('overlay')) ||
+                                     elementClass.includes('main-content') ||
+                                     elementClass.includes('page-content') ||
+                                     elementId === 'content' ||
+                                     elementId === 'main';
+                
+                // Also skip if it's a section with lots of links (likely navigation or footer)
+                const linkCount = element.querySelectorAll('a').length;
+                if (linkCount > 10 && text.length > 500) {
+                    return; // Skip - likely navigation or footer
+                }
+                
+                if (isLargeContent || hasNavigation || isMainContent) {
+                    return; // Skip - this is likely page content, not a banner
+                }
+                
+                // Must contain cookie/consent keywords AND be a banner/overlay/dialog
+                const hasCookieText = (text.includes('cookie') || text.includes('consent') || text.includes('gdpr')) && 
+                                     (text.includes('accept') || text.includes('agree') || text.includes('preference') || text.includes('manage'));
+                const isBannerLike = elementClass.includes('banner') || 
+                                     elementClass.includes('overlay') || 
+                                     elementClass.includes('modal') ||
+                                     elementClass.includes('dialog') ||
+                                     elementClass.includes('popup') ||
+                                     elementClass.includes('notice') ||
+                                     elementId.includes('banner') ||
+                                     elementId.includes('overlay') ||
+                                     elementId.includes('modal') ||
+                                     elementId.includes('dialog') ||
+                                     elementId.includes('popup') ||
+                                     element.getAttribute('role') === 'dialog' ||
+                                     element.getAttribute('role') === 'banner' ||
+                                     // Check if it's positioned as an overlay (fixed or absolute at top/bottom)
+                                     (window.getComputedStyle(element).position === 'fixed' || 
+                                      (window.getComputedStyle(element).position === 'absolute' && 
+                                       (rect.top < 100 || rect.bottom > window.innerHeight - 100)));
+                
+                // Only hide if it's clearly a cookie banner (small overlay, not main content)
+                if (hasCookieText && isBannerLike && text.length < 1500 && !isLargeContent) {
                     // Only hide, don't remove immediately to avoid triggering reloads
                     element.style.display = 'none';
                     element.style.visibility = 'hidden';

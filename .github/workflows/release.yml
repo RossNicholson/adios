@@ -1,0 +1,184 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
+      - name: Import Developer ID certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Create a temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+
+          # Import the Developer ID certificate
+          echo "$CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          security import certificate.p12 \
+            -k build.keychain \
+            -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm certificate.p12
+
+      - name: Build app (Release)
+        run: |
+          xcodebuild \
+            -project Adios.xcodeproj \
+            -scheme "Adios (macOS)" \
+            -configuration Release \
+            -archivePath build/Adios.xcarchive \
+            archive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Export app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>developer-id</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Developer ID Application</string>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/Adios.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist ExportOptions.plist
+
+      - name: Create DMG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+
+          # Create a staging folder for the DMG
+          mkdir -p dmg_staging
+          cp -r "build/export/Adios.app" dmg_staging/
+
+          # Create symlink to /Applications
+          ln -s /Applications dmg_staging/Applications
+
+          hdiutil create \
+            -volname "Adios $VERSION" \
+            -srcfolder dmg_staging \
+            -ov \
+            -format UDZO \
+            "dist/Adios-$VERSION.dmg"
+
+          rm -rf dmg_staging
+
+      - name: Notarize DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DMG="dist/Adios-$VERSION.dmg"
+
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          xcrun stapler staple "$DMG"
+
+      - name: Compute SHA256
+        id: sha256
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          SHA=$(shasum -a 256 "dist/Adios-$VERSION.dmg" | awk '{print $1}')
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Adios-${{ steps.sha256.outputs.version }}.dmg
+          body: |
+            ## Adios v${{ steps.sha256.outputs.version }}
+
+            ### Installation via Homebrew
+            ```bash
+            brew tap rossnicholson/tap
+            brew install --cask adios
+            ```
+
+            ### Manual Installation
+            Download the `.dmg` below, open it, and drag Adios to your Applications folder.
+            Then open Adios and enable the extension in Safari Settings → Extensions.
+
+            ### SHA256
+            `${{ steps.sha256.outputs.sha256 }}`
+
+      - name: Update Homebrew Cask formula
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.sha256.outputs.version }}"
+          SHA256="${{ steps.sha256.outputs.sha256 }}"
+
+          git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/rossnicholson/homebrew-tap.git
+          cd homebrew-tap
+
+          cat > Casks/adios.rb << EOF
+          cask "adios" do
+            version "$VERSION"
+            sha256 "$SHA256"
+
+            url "https://github.com/rossnicholson/adios/releases/download/v#{version}/Adios-#{version}.dmg"
+            name "Adios"
+            desc "Open-source ad blocker for Safari on macOS"
+            homepage "https://github.com/rossnicholson/adios"
+
+            app "Adios.app"
+
+            postflight do
+              puts "Adios installed. Open it and enable the extension in Safari Settings → Extensions."
+            end
+
+            zap trash: [
+              "~/Library/Containers/dev.rossnicholson.Adios",
+              "~/Library/Containers/dev.rossnicholson.Adios.Extension",
+            ]
+          end
+          EOF
+
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add Casks/adios.rb
+          git commit -m "adios: update to $VERSION"
+          git push
