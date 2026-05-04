@@ -1,21 +1,95 @@
-// Browser API polyfill for compatibility
+// Browser API polyfill for compatibility (use globalThis — window is not defined in service workers)
 if (typeof browser === 'undefined') {
-    window.browser = typeof chrome !== 'undefined' ? chrome : {};
+    globalThis.browser = typeof chrome !== 'undefined' ? chrome : {};
 }
 
-// Debug mode - set to true to enable detailed logging
+// Debug mode
 let DEBUG_MODE = false;
-
-// Enable debug mode from storage
 browser.storage.local.get({ debugMode: false }).then(data => {
     DEBUG_MODE = data.debugMode || false;
 });
 
-// Debug logging function
-function debugLog(...args) {
-    if (DEBUG_MODE) {
-        console.log('[Adios Debug]', ...args);
+// ── In-memory log ring buffer (last 200 entries, always on) ───────────────
+const LOG_MAX = 200;
+const logBuffer = [];
+
+function bgLog(level, ...args) {
+    const msg = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
+    logBuffer.push({ ts: Date.now(), level, msg });
+    if (logBuffer.length > LOG_MAX) logBuffer.shift();
+    if (level === 'BLOCK' || level === 'ALLOW' || level === 'ANTI' || DEBUG_MODE) {
+        console.log(`[Adios ${level}]`, msg);
     }
+}
+
+function debugLog(...args) {
+    if (DEBUG_MODE) bgLog('DEBUG', ...args);
+}
+
+// Tab page hostname — Safari often omits originUrl/documentUrl on subresources (logs show "← ?").
+const tabPageHostCache = new Map();
+function updateTabPageHost(tabId, urlStr) {
+    if (tabId == null || tabId < 0 || !urlStr || !/^https?:/i.test(urlStr)) return;
+    try {
+        tabPageHostCache.set(tabId, new URL(urlStr).hostname.toLowerCase());
+    } catch (_) {}
+}
+browser.tabs.onRemoved.addListener(tabId => tabPageHostCache.delete(tabId));
+browser.tabs.onUpdated.addListener((tabId, _changeInfo, tab) => {
+    if (tab && tab.url) updateTabPageHost(tabId, tab.url);
+});
+
+const DATA_URI_1PX_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+const DATA_URI_EMPTY_JSON = 'data:application/json;charset=utf-8,%7B%7D';
+
+/** Return a redirect that satisfies the request type without running real detector / measurement code. */
+function neutralizeDetectorRequest(details, domain, reason) {
+    const t = details.type;
+    if (t === 'script') {
+        bgLog('ANTI', `${reason}: ${domain} (script) | ${details.url.slice(0, 100)}`);
+        return { redirectUrl: browser.runtime.getURL('empty.js') };
+    }
+    if (t === 'sub_frame') {
+        bgLog('ANTI', `${reason}: ${domain} (sub_frame) | ${details.url.slice(0, 80)}`);
+        return { redirectUrl: browser.runtime.getURL('empty.html') };
+    }
+    if (t === 'xmlhttprequest' || t === 'other') {
+        bgLog('ANTI', `${reason}: ${domain} (${t}) | ${details.url.slice(0, 80)}`);
+        return { redirectUrl: DATA_URI_EMPTY_JSON };
+    }
+    if (t === 'image') {
+        bgLog('ANTI', `${reason}: ${domain} (image) | ${details.url.slice(0, 80)}`);
+        return { redirectUrl: DATA_URI_1PX_GIF };
+    }
+    if (t === 'ping') {
+        bgLog('ANTI', `${reason}: ${domain} (ping)`);
+        return { redirectUrl: DATA_URI_1PX_GIF };
+    }
+    return null;
+}
+
+/**
+ * GAM/GPT and related *loaders* must load or many news sites throw and white-screen.
+ * We still block ad inventory (/gampad/ads, /pcs/view, pings, sync, cm., etc.) and EasyList hits elsewhere.
+ */
+function isPublisherAdInfraAllowed(details, domain, url) {
+    const path = url.pathname.toLowerCase();
+    const t = details.type;
+
+    if (t === 'script') {
+        if (domain === 'securepubads.g.doubleclick.net' && path.endsWith('/tag/js/gpt.js')) return true;
+        if ((domain === 'www.googletagservices.com' || domain === 'googletagservices.com') &&
+            path.endsWith('/tag/js/gpt.js')) return true;
+        if (domain === 'securepubads.g.doubleclick.net' &&
+            path.includes('/pagead/managed/js/gpt/') && path.includes('pubads_impl')) return true;
+        if (domain === 'imasdk.googleapis.com' && path.includes('/js/sdkloader/ima3')) return true;
+        if (domain === 'client.aps.amazon-adsystem.com' && path.endsWith('/publisher.js')) return true;
+        if (domain.endsWith('.2mdn.net') && path.includes('/instream/video/client.js')) return true;
+    }
+    if (domain === 'config.aps.amazon-adsystem.com' && path.includes('/configs/') &&
+        (t === 'script' || t === 'xmlhttprequest' || t === 'other')) return true;
+
+    return false;
 }
 
 // Common ad network domains and patterns
@@ -59,18 +133,22 @@ const adPatterns = [
     
     // Major Ad Networks & Platforms
     "*://*.amazon-adsystem.com/*",
-    "*://*.adnxs.com/*",  // AppNexus/Xandr
+    "*://*.adnxs.com/*",          // AppNexus/Xandr
     "*://*.xandr.com/*",
     "*://*.outbrain.com/*",
     "*://*.taboola.com/*",
     "*://*.adroll.com/*",
     "*://*.mediamath.com/*",
     "*://*.rubiconproject.com/*",
+    "*://*.magnite.com/*",        // Magnite (Rubicon Project SSP rebranded)
+    "*://*.springserve.com/*",    // Magnite's video SSP
     "*://*.openx.net/*",
     "*://*.openx.com/*",
     "*://*.pubmatic.com/*",
+    "*://*.pubmatic.net/*",
     "*://*.indexexchange.com/*",
     "*://*.indexww.com/*",
+    "*://*.casalemedia.com/*",    // Index Exchange legacy domain
     "*://*.criteo.com/*",
     "*://*.criteo.net/*",
     "*://*.media.net/*",
@@ -79,30 +157,66 @@ const adPatterns = [
     "*://*.adtech.com/*",
     "*://*.adtech.fr/*",
     "*://*.adtech.jp/*",
-    "*://*.casalemedia.com/*",
     "*://*.33across.com/*",
     "*://*.33across.net/*",
     "*://*.sovrn.com/*",
-    "*://*.lijit.com/*",
+    "*://*.lijit.com/*",          // Sovrn legacy domain
     "*://*.conversantmedia.com/*",
     "*://*.adform.com/*",
     "*://*.adform.net/*",
     "*://*.adformdsp.net/*",
     "*://*.adcolony.com/*",
-    "*://*.adsrvr.org/*",
+    "*://*.adsrvr.org/*",         // The Trade Desk
+    "*://*.thetradedesk.com/*",
     "*://*.adsystem.com/*",
     "*://*.brightcom.com/*",
     "*://*.brightcom.net/*",
     "*://*.brightroll.com/*",
     "*://*.adsafeprotected.com/*",
+    // Anti-adblock detection services (block the detector, not just the ads)
+    "*://*.admiral.digital/*",       // Admiral anti-adblock service
+    "*://*.getadmiral.com/*",
+    "*://*.recoverads.net/*",
+    "*://*.fuckadblock.js.org/*",
+    "*://*.blockadblock.com/*",
+    "*://*.detectadblock.com/*",
+    // Teads (owned by Outbrain, major video/native ad platform)
+    "*://*.teads.tv/*",
+    "*://*.teads.com/*",
+    "*://*.t.teads.tv/*",
+    // TripleLift (native advertising)
+    "*://*.triplelift.com/*",
+    "*://*.3lift.com/*",
+    // ShareThrough (native advertising)
+    "*://*.sharethrough.com/*",
+    "*://*.strnative.com/*",
+    // StackAdapt (programmatic display/native)
+    "*://*.stackadapt.com/*",
+    // CafeMedia / AdThrive (publisher ad management)
+    "*://*.cafemedia.com/*",
+    "*://*.adthrive.com/*",
+    // Prebid / header bidding infrastructure
+    "*://*.prebid.org/*",
+    "*://*.prebid.io/*",
+    // Verizon / Yahoo Ad Platform
+    "*://*.oath.com/*",
+    "*://*.yahooinc.com/*",
+    "*://*.yimg.com/*",
+    // Smart AdServer / Equativ
+    "*://*.smartadserver.com/*",
+    "*://*.equativ.com/*",
+    // Connatix (video ad platform for publishers)
+    "*://*.connatix.com/*",
+    // GumGum (in-image/contextual ads)
+    "*://*.gumgum.com/*",
+    // Seedtag (contextual ads)
+    "*://*.seedtag.com/*",
     
-    // Video Ad Networks
+    // Video Ad Networks (only true ad networks — brightcove/jwplayer are legitimate video platforms)
     "*://*.spotxchange.com/*",
     "*://*.spotx.tv/*",
     "*://*.videologygroup.com/*",
     "*://*.tremorvideo.com/*",
-    "*://*.brightcove.com/*",
-    "*://*.jwplayer.com/*",
     
     // Native Ad Networks
     "*://*.revcontent.com/*",
@@ -145,8 +259,8 @@ const trackerPatterns = [
     "*://*.heap.io/*",
     "*://*.newrelic.com/*",
     "*://*.optimizely.com/*",
-    "*://*.adobe.com/*",
     "*://*.omniture.com/*",
+    // adobe.com is too broad (covers legitimate Creative Cloud / Fonts / Document services)
     "*://*.2o7.net/*",
     "*://*.demdex.net/*",
     "*://*.everesttech.net/*",
@@ -173,6 +287,107 @@ const malwarePatterns = [
     "*://*.malware.com/*",
     "*://*.phishing.com/*",
 ];
+
+// ─── EasyList Live Filter Integration ─────────────────────────────────────
+const EASYLIST_AD_URL      = 'https://raw.githubusercontent.com/easylist/easylist/master/easylist/easylist_adservers.txt';
+const EASYPRIVACY_URL      = 'https://raw.githubusercontent.com/easylist/easylist/master/easyprivacy/easyprivacy_trackingservers.txt';
+const EASYLIST_CACHE_HOURS = 24;
+
+let easyListDomainSet = new Set();
+
+async function parseFilterListDomains(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
+    const text = await res.text();
+    const domains = [];
+    for (const line of text.split('\n')) {
+        const t = line.trim();
+        if (!t || t.startsWith('!') || t.startsWith('[') || t.startsWith('@@') ||
+            t.includes('##') || t.includes('#@#')) continue;
+        const m = t.match(/^\|\|([a-z0-9][a-z0-9._-]{2,})\^(?:\$.*)?$/i);
+        if (m && !m[1].includes('/')) domains.push(m[1].toLowerCase());
+    }
+    return domains;
+}
+
+async function loadEasyList(forceRefresh = false) {
+    try {
+        const stored = await browser.storage.local.get({
+            easyListDomains: [], easyListLastFetched: 0, filterLists: {}
+        });
+        const ageMs = Date.now() - stored.easyListLastFetched;
+        if (!forceRefresh && stored.easyListDomains.length > 0 && ageMs < EASYLIST_CACHE_HOURS * 3_600_000) {
+            easyListDomainSet = new Set(stored.easyListDomains);
+            console.log(`[Adios] EasyList from cache: ${easyListDomainSet.size} domains`);
+            return easyListDomainSet.size;
+        }
+        const fl = stored.filterLists;
+        const fetches = [];
+        if (fl.easyList    !== false) fetches.push(parseFilterListDomains(EASYLIST_AD_URL));
+        if (fl.privacyList !== false) fetches.push(parseFilterListDomains(EASYPRIVACY_URL));
+        const results = await Promise.allSettled(fetches);
+        const all = [];
+        for (const r of results) { if (r.status === 'fulfilled') all.push(...r.value); }
+        const unique = [...new Set(all)];
+        await browser.storage.local.set({
+            easyListDomains: unique, easyListLastFetched: Date.now(), easyListCount: unique.length
+        });
+        easyListDomainSet = new Set(unique);
+        console.log(`[Adios] EasyList updated: ${easyListDomainSet.size} domains`);
+        return easyListDomainSet.size;
+    } catch (e) {
+        console.error('[Adios] EasyList load error:', e);
+        return 0;
+    }
+}
+
+loadEasyList();
+browser.alarms.create('easyListRefresh', { periodInMinutes: 1440 });
+
+// ─── Per-page block rate tracking (for broken-page indicator) ─────────────
+// { 'domain.com': { total, blocked, resetAt } }
+const pageBlockRates = {};
+const PAGE_STAT_WINDOW_MS = 5 * 60 * 1000;
+
+function recordPageRequest(originDomain, wasBlocked) {
+    if (!originDomain) return;
+    const now = Date.now();
+    const rec = pageBlockRates[originDomain];
+    if (!rec || now - rec.resetAt > PAGE_STAT_WINDOW_MS) {
+        pageBlockRates[originDomain] = { total: 0, blocked: 0, resetAt: now };
+    }
+    pageBlockRates[originDomain].total++;
+    if (wasBlocked) pageBlockRates[originDomain].blocked++;
+}
+
+browser.webRequest.onCompleted.addListener(
+    details => {
+        try {
+            if (details.type === 'main_frame') return;
+            const od = new URL(details.originUrl || details.documentUrl || '').hostname.replace(/^www\./, '');
+            recordPageRequest(od, false);
+        } catch (_) {}
+    },
+    { urls: ['<all_urls>'] }
+);
+
+browser.webRequest.onErrorOccurred.addListener(
+    details => {
+        try {
+            if (details.type === 'main_frame') return;
+            const od = new URL(details.originUrl || details.documentUrl || '').hostname.replace(/^www\./, '');
+            // net::ERR_BLOCKED_BY_CLIENT = blocked by extension
+            recordPageRequest(od, details.error === 'net::ERR_BLOCKED_BY_CLIENT');
+        } catch (_) {}
+    },
+    { urls: ['<all_urls>'] }
+);
+
+// ─── Per-site settings cache (avoids async storage reads in hot path) ──────
+let siteSettingsCache = {};
+browser.storage.local.get({ siteSettings: {} }).then(({ siteSettings }) => {
+    siteSettingsCache = siteSettings || {};
+});
 
 // Common ad element selectors
 const adSelectors = [
@@ -430,6 +645,10 @@ browser.webRequest.onBeforeRequest.addListener(
             const urlString = url.href.toLowerCase();
             
             debugLog('Checking URL:', details.url, 'Domain:', domain);
+
+            if (details.type === 'main_frame' && details.tabId >= 0) {
+                updateTabPageHost(details.tabId, details.url);
+            }
             
             // Don't block essential page resources - always allow main document, CSS, and fonts
             if (details.type === 'main_frame' || 
@@ -453,7 +672,49 @@ browser.webRequest.onBeforeRequest.addListener(
                     // Invalid document URL
                 }
             }
+            if (!originDomain && details.tabId >= 0) {
+                const cached = tabPageHostCache.get(details.tabId);
+                if (cached) originDomain = cached;
+            }
             
+            // Google Funding Choices — must load real scripts/XHR. Empty redirects trigger publisher
+            // error-protection and break GAM boot on sites like Daily Mail (white screen). See AdSense
+            // troubleshooting: blocked recovery scripts show fallback / break page integration.
+            if (domain === 'fundingchoicesmessages.google.com' || domain.endsWith('.fundingchoicesmessages.google.com')) {
+                return { cancel: false };
+            }
+
+            // Redirect known anti-adblock / "recovery" endpoints (other hosts only).
+
+            const ANTI_ADBLOCK_REDIRECT_DOMAINS = [
+                'webcontentassessor.com',   // Oriel / Daily Mail
+                'getadmiral.com',
+                'admiral.digital',
+                'fuckadblock.js.org',
+                'blockadblock.com',
+                'detectadblock.com',
+                'adblockanalytics.com',
+                'pagefair.com',
+                'pagefair.net',
+                'theadblock.com',
+                'adtrafficquality.google',
+            ];
+            const isAntiAdblockDomain = ANTI_ADBLOCK_REDIRECT_DOMAINS.some(d => domain === d || domain.endsWith('.' + d));
+            if (isAntiAdblockDomain) {
+                const redirect = neutralizeDetectorRequest(details, domain, 'Neutralised detector');
+                if (redirect) return redirect;
+            }
+
+            // IAS — allow through webRequest; fake JSON/empty script breaks GPT render trees on major publishers.
+            if (domain === 'adsafeprotected.com' || domain.endsWith('.adsafeprotected.com')) {
+                return { cancel: false };
+            }
+
+            if (isPublisherAdInfraAllowed(details, domain, url)) {
+                bgLog('ALLOW', `Publisher stack (avoid blank page): ${domain}${url.pathname.slice(0, 80)}`);
+                return { cancel: false };
+            }
+
             // NEVER block first-party resources (same domain as the page)
             // This ensures pages can load their own JavaScript, images, API calls, and other assets
             if (originDomain && domain === originDomain) {
@@ -467,6 +728,21 @@ browser.webRequest.onBeforeRequest.addListener(
                 const requestBaseDomain = domain.replace(/^www\./, '');
                 if (domain.endsWith('.' + baseDomain) || baseDomain.endsWith('.' + requestBaseDomain) || 
                     domain === baseDomain || requestBaseDomain === baseDomain) {
+                    // Exception: block known anti-adblock detection scripts even from first-party subdomains
+                    const isAntiAdblockScript =
+                        urlString.includes('/static/mol-adverts/') ||         // Daily Mail anti-adblock
+                        urlString.includes('/static/adsscript/') ||
+                        urlString.includes('adblock-detection') ||
+                        urlString.includes('adblock_detection') ||
+                        urlString.includes('detectadblock') ||
+                        urlString.includes('fuckadblock') ||
+                        urlString.includes('blockadblock') ||
+                        (urlString.includes('admiral') && details.type === 'script');
+                    if (isAntiAdblockScript) {
+                        const redirect = neutralizeDetectorRequest(details, domain, 'Neutralised same-site detector');
+                        if (redirect) return redirect;
+                        return { cancel: false };
+                    }
                     debugLog('Same-site resource (subdomain), allowing:', details.url);
                     return { cancel: false };
                 }
@@ -535,11 +811,42 @@ browser.webRequest.onBeforeRequest.addListener(
 
             // Check exceptions
             // Don't block if site is in exceptions
-            if (settings.exceptions && settings.exceptions.length > 0 &&
-                (settings.exceptions.includes(domain) || 
-                 settings.exceptions.includes(originDomain))) {
-                debugLog('URL in exceptions, allowing:', details.url);
-                return { cancel: false };
+            if (settings.exceptions && settings.exceptions.length > 0) {
+                const cleanOrigin = originDomain.replace(/^www\./, '');
+                const isPageExcepted = settings.exceptions.some(ex => {
+                    const clean = ex.toLowerCase().replace(/^www\./, '');
+                    return cleanOrigin === clean || cleanOrigin.endsWith('.' + clean);
+                });
+                if (isPageExcepted) {
+                    debugLog('Page domain in exceptions, allowing:', details.url);
+                    return { cancel: false };
+                }
+            }
+
+            // Per-site category overrides (checked early, before expensive pattern matching)
+            const siteOvr = siteSettingsCache[originDomain.replace(/^www\./, '')] || {};
+            if (Object.keys(siteOvr).length > 0) {
+                // Determine category quickly from domain for the override check
+                const quickCat = (() => {
+                    if (domain.includes('doubleclick') || domain.includes('googlesyndication') ||
+                        domain.includes('googleadservices') || domain.includes('adnxs') ||
+                        domain.includes('pubmatic') || domain.includes('openx') ||
+                        domain.includes('criteo') || domain.includes('taboola') ||
+                        domain.includes('outbrain') || domain.includes('teads') ||
+                        domain.includes('triplelift') || domain.includes('sharethrough')) return 'ad';
+                    if (domain.includes('google-analytics') || domain.includes('googletagmanager') ||
+                        domain.includes('hotjar') || domain.includes('segment') ||
+                        domain.includes('mixpanel') || domain.includes('amplitude') ||
+                        domain.includes('newrelic') || domain.includes('facebook.net') ||
+                        domain.includes('fbcdn')) return 'tracker';
+                    if (domain.includes('twitter') || domain.includes('twimg') ||
+                        domain.includes('facebook.com') || domain.includes('linkedin') ||
+                        domain.includes('instagram') || domain.includes('pinterest')) return 'social';
+                    return null;
+                })();
+                if (quickCat === 'ad'      && siteOvr.blockAds      === false) return { cancel: false };
+                if (quickCat === 'tracker' && siteOvr.blockTrackers  === false) return { cancel: false };
+                if (quickCat === 'social'  && siteOvr.blockSocial    === false) return { cancel: false };
             }
 
             // Check if this is a Google ad/tracking domain first (most common case)
@@ -681,17 +988,7 @@ browser.webRequest.onBeforeRequest.addListener(
                     [`site:${tabDomain}`]: stats.siteStats[tabDomain]
                 }).catch(err => console.error('Error saving stats:', err));
                 
-                // Block immediately for Google ads
-                debugLog('BLOCKING Google ad:', details.url, 'Category:', googleCategory);
-                
-                // Log to popup for troubleshooting
-                browser.runtime.sendMessage({
-                    type: 'requestLog',
-                    url: details.url,
-                    domain: domain,
-                    blocked: true
-                }).catch(() => {}); // Ignore errors if popup not open
-                
+                bgLog('BLOCK', `[${googleCategory?.toUpperCase() || 'GOOGLE'}] ${domain} ← ${originDomain || '?'} | ${details.url.slice(0, 120)}`);
                 return { cancel: true };
             } else {
                 // For non-Google domains, check if they match our patterns
@@ -725,7 +1022,16 @@ browser.webRequest.onBeforeRequest.addListener(
                     }
                 });
                 
-                if (!matchesPattern) {
+                // Also check EasyList live domain set
+                const isEasyListDomain = easyListDomainSet.size > 0 && (() => {
+                    const parts = domain.split('.');
+                    for (let i = 0; i < parts.length - 1; i++) {
+                        if (easyListDomainSet.has(parts.slice(i).join('.'))) return true;
+                    }
+                    return false;
+                })();
+
+                if (!matchesPattern && !isEasyListDomain) {
                     debugLog('No pattern match, allowing:', details.url);
                     return { cancel: false };
                 }
@@ -854,17 +1160,7 @@ browser.webRequest.onBeforeRequest.addListener(
                 [`site:${tabDomain}`]: stats.siteStats[tabDomain]
             });
 
-            // Log to popup for troubleshooting (even if not blocked)
-            if (DEBUG_MODE) {
-                browser.runtime.sendMessage({
-                    type: 'requestLog',
-                    url: details.url,
-                    domain: domain,
-                    blocked: true,
-                    category: category
-                }).catch(() => {}); // Ignore errors if popup not open
-            }
-            
+            bgLog('BLOCK', `[${category?.toUpperCase() || 'AD'}] ${domain} ← ${originDomain || '?'} | ${details.url.slice(0, 120)}`);
             return { cancel: true };
         } catch (error) {
             console.error('Error in onBeforeRequest:', error);
@@ -885,16 +1181,124 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
             let response;
             
             switch (request.type) {
-                case "getAdSelectors":
-                    response = { 
-                        selectors: settings.enabled ? adSelectors : [],
+                case "getAdSelectors": {
+                    const requestingDomain = request.domain ? request.domain.toLowerCase().replace(/^www\./, '') : '';
+                    const isExcepted = requestingDomain && settings.exceptions &&
+                        settings.exceptions.some(ex => {
+                            const clean = ex.toLowerCase().replace(/^www\./, '');
+                            return requestingDomain === clean || requestingDomain.endsWith('.' + clean);
+                        });
+                    const siteOvrGs = siteSettingsCache[requestingDomain] || {};
+                    response = {
+                        selectors: (settings.enabled && !isExcepted) ? adSelectors : [],
+                        isExcepted,
+                        siteSettings: siteOvrGs,
                         settings: {
-                            enabled: settings.enabled,
-                            cookieConsent: settings.cookieConsent,
-                            antiFingerprint: settings.antiFingerprint
+                            enabled: settings.enabled && !isExcepted,
+                            cookieConsent: (siteOvrGs.cookieConsent !== undefined ? siteOvrGs.cookieConsent : settings.cookieConsent) && !isExcepted,
+                            antiFingerprint: settings.antiFingerprint,
+                            blockAds:     siteOvrGs.blockAds     !== undefined ? siteOvrGs.blockAds     : settings.blockAds,
+                            blockTrackers: siteOvrGs.blockTrackers !== undefined ? siteOvrGs.blockTrackers : settings.blockTrackers,
+                            blockSocial:  siteOvrGs.blockSocial  !== undefined ? siteOvrGs.blockSocial  : settings.blockSocial
                         }
                     };
                     break;
+                }
+
+                case "getSiteSettings": {
+                    const d = (request.domain || '').toLowerCase().replace(/^www\./, '');
+                    const { siteSettings: ss = {} } = await browser.storage.local.get({ siteSettings: {} });
+                    response = { settings: ss[d] || null };
+                    break;
+                }
+
+                case "setSiteSettings": {
+                    const d = (request.domain || '').toLowerCase().replace(/^www\./, '');
+                    const { siteSettings: ss = {} } = await browser.storage.local.get({ siteSettings: {} });
+                    if (request.settings === null) {
+                        delete ss[d];
+                    } else {
+                        ss[d] = { ...(ss[d] || {}), ...request.settings };
+                    }
+                    await browser.storage.local.set({ siteSettings: ss });
+                    siteSettingsCache = ss;
+                    response = { success: true };
+                    break;
+                }
+
+                case "getPageBlockRate": {
+                    const d = (request.domain || '').replace(/^www\./, '');
+                    const rec = pageBlockRates[d];
+                    response = rec
+                        ? { total: rec.total, blocked: rec.blocked, rate: rec.total > 0 ? rec.blocked / rec.total : 0 }
+                        : { total: 0, blocked: 0, rate: 0 };
+                    break;
+                }
+
+                case "getCosmeticRules": {
+                    const d = (request.domain || '').toLowerCase().replace(/^www\./, '');
+                    const { userCosmeticRules: ucr = {} } = await browser.storage.local.get({ userCosmeticRules: {} });
+                    response = { rules: ucr[d] || [] };
+                    break;
+                }
+
+                case "addCosmeticRule": {
+                    const d = (request.domain || '').toLowerCase().replace(/^www\./, '');
+                    const { userCosmeticRules: ucr = {} } = await browser.storage.local.get({ userCosmeticRules: {} });
+                    if (!ucr[d]) ucr[d] = [];
+                    if (!ucr[d].includes(request.selector)) ucr[d].push(request.selector);
+                    await browser.storage.local.set({ userCosmeticRules: ucr });
+                    // Apply immediately to all matching tabs
+                    try {
+                        const tabs = await browser.tabs.query({ url: `*://*.${d}/*` });
+                        for (const tab of tabs) {
+                            browser.tabs.sendMessage(tab.id, { type: 'applyNewCosmeticRule', selector: request.selector }).catch(() => {});
+                        }
+                    } catch (_) {}
+                    response = { success: true };
+                    break;
+                }
+
+                case "removeCosmeticRule": {
+                    const d = (request.domain || '').toLowerCase().replace(/^www\./, '');
+                    const { userCosmeticRules: ucr = {} } = await browser.storage.local.get({ userCosmeticRules: {} });
+                    if (ucr[d]) ucr[d] = ucr[d].filter(r => r !== request.selector);
+                    await browser.storage.local.set({ userCosmeticRules: ucr });
+                    response = { success: true };
+                    break;
+                }
+
+                case "refreshEasyList": {
+                    const count = await loadEasyList(true);
+                    response = { success: true, count };
+                    break;
+                }
+
+                case "getLogs": {
+                    // Return log entries newer than request.since (timestamp), filtered by domain if given
+                    const since  = request.since  || 0;
+                    const filter = request.domain ? request.domain.replace(/^www\./, '') : null;
+                    const entries = logBuffer.filter(e => {
+                        if (e.ts <= since) return false;
+                        if (filter && !e.msg.includes(filter)) return false;
+                        return true;
+                    });
+                    response = { logs: entries };
+                    break;
+                }
+
+                case "contentLog": {
+                    // Log messages from content.js
+                    bgLog(request.level || 'PAGE', request.msg || '');
+                    response = { success: true };
+                    break;
+                }
+
+                case "clearLogs": {
+                    logBuffer.length = 0;
+                    response = { success: true };
+                    break;
+                }
                 
                 case "toggleBlocking":
                     settings.enabled = request.enabled;
@@ -995,8 +1399,8 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     break;
                 
                 case "scheduleUpdated":
-                    // Update scheduled blocking configuration
                     await browser.storage.local.set({ scheduleConfig: request.schedule });
+                    applySchedule(request.schedule);
                     response = { success: true };
                     break;
                 
@@ -1054,5 +1458,52 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
 });
 
-// Log when the background script loads
+// ── Scheduled blocking ────────────────────────────────────
+// Runs in the background regardless of whether the popup is open.
+function applySchedule(config) {
+    if (!config || !config.enabled) return;
+
+    const now = new Date();
+    const dayMap = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+    const todayKey = Object.keys(dayMap).find(k => dayMap[k] === now.getDay());
+    const activeDays = config.days || [];
+
+    if (!activeDays.includes(todayKey)) return;
+
+    const [startH, startM] = (config.startTime || '00:00').split(':').map(Number);
+    const [endH, endM]   = (config.endTime   || '23:59').split(':').map(Number);
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const startMinutes   = startH * 60 + startM;
+    const endMinutes     = endH   * 60 + endM;
+
+    const inWindow = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    if (!inWindow) return;
+
+    const modeMap = {
+        strict:   { blockAds: true,  blockTrackers: true,  blockSocial: true,  blockMalware: true },
+        balanced: { blockAds: true,  blockTrackers: true,  blockSocial: false, blockMalware: true },
+        relaxed:  { blockAds: false, blockTrackers: false, blockSocial: false, blockMalware: true }
+    };
+    const modeSettings = modeMap[config.mode || 'balanced'];
+    Object.assign(settings, modeSettings);
+    browser.storage.local.set({ settings });
+}
+
+// Check schedule every minute using alarms (works even when popup is closed)
+browser.alarms.create('scheduleCheck', { periodInMinutes: 1 });
+browser.alarms.onAlarm.addListener(async (alarm) => {
+    if (alarm.name === 'scheduleCheck') {
+        const { scheduleConfig } = await browser.storage.local.get({ scheduleConfig: null });
+        if (scheduleConfig) applySchedule(scheduleConfig);
+    }
+    if (alarm.name === 'easyListRefresh') {
+        loadEasyList(true);
+    }
+});
+
+// Apply saved schedule on startup
+browser.storage.local.get({ scheduleConfig: null }).then(({ scheduleConfig }) => {
+    if (scheduleConfig) applySchedule(scheduleConfig);
+});
+
 console.log('Adios background script loaded');

@@ -1,6 +1,6 @@
 // Browser API polyfill for compatibility
 if (typeof browser === 'undefined') {
-    window.browser = typeof chrome !== 'undefined' ? chrome : {};
+    globalThis.browser = typeof chrome !== 'undefined' ? chrome : {};
 }
 
 // State update lock to prevent race conditions
@@ -337,6 +337,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         exceptionBtn.textContent = isExcepted ? 'Remove from Exceptions' : 'Allow Ads on This Site';
                         exceptionBtn.classList.toggle('excepted', isExcepted);
                     }
+
+                    // Load per-site overrides, block rate, and cosmetic rules
+                    // (these functions are defined below; they run after DOMContentLoaded finishes)
+                    setTimeout(() => {
+                        loadSiteOverrides(domain).catch(() => {});
+                        checkBlockRate(domain).catch(() => {});
+                    }, 100);
                 } catch (e) {
                     // Invalid URL
                     console.error('Error parsing URL:', e);
@@ -458,6 +465,231 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     
+    // Handle "Allow Ads on This Site" button
+    const toggleExceptionBtn = document.getElementById('toggleException');
+    if (toggleExceptionBtn) {
+        toggleExceptionBtn.addEventListener('click', async () => {
+            if (!currentDomain || currentDomain === '-') return;
+            try {
+                const { exceptions = [] } = await browser.storage.local.get({ exceptions: [] });
+                const isExcepted = exceptions.includes(currentDomain);
+                let updated;
+                if (isExcepted) {
+                    updated = exceptions.filter(d => d !== currentDomain);
+                } else {
+                    updated = [...exceptions, currentDomain];
+                }
+                await browser.storage.local.set({ exceptions: updated });
+                // Notify background script
+                try {
+                    await browser.runtime.sendMessage({ type: 'exceptionsUpdated', exceptions: updated });
+                } catch (e) { /* background may not be listening */ }
+                // Update button UI
+                const nowExcepted = updated.includes(currentDomain);
+                toggleExceptionBtn.textContent = nowExcepted ? 'Remove from Exceptions' : 'Allow Ads on This Site';
+                toggleExceptionBtn.classList.toggle('excepted', nowExcepted);
+                // Refresh the exceptions list
+                await updateExceptionsList();
+            } catch (e) {
+                console.error('Error toggling exception:', e);
+            }
+        });
+    }
+
+    // ── Per-site category overrides ──────────────────────────────────────────
+    let currentSiteOverrides = null; // null = no override (follow global)
+
+    async function loadSiteOverrides(domain) {
+        if (!domain || domain === '-') return;
+        try {
+            const resp = await browser.runtime.sendMessage({ type: 'getSiteSettings', domain });
+            currentSiteOverrides = resp?.settings || null;
+            renderSiteOverrides(domain);
+            await loadCosmeticRules(domain);
+        } catch (e) { console.error('Error loading site overrides:', e); }
+    }
+
+    function renderSiteOverrides(domain) {
+        const ovr = currentSiteOverrides || {};
+        const hasOverride = currentSiteOverrides !== null;
+
+        const setOvr = (id, key, globalVal) => {
+            const el = document.getElementById(id);
+            const hint = document.getElementById(id + 'Hint');
+            if (!el) return;
+            el.checked = ovr[key] !== undefined ? ovr[key] : globalVal;
+            if (hint) hint.textContent = ovr[key] !== undefined ? '(custom)' : '';
+        };
+        setOvr('siteBlockAds',      'blockAds',      settings.blockAds);
+        setOvr('siteBlockTrackers', 'blockTrackers', settings.blockTrackers);
+        setOvr('siteBlockSocial',   'blockSocial',   settings.blockSocial);
+        setOvr('siteCookieConsent', 'cookieConsent', settings.cookieConsent);
+
+        const resetBtn = document.getElementById('resetSiteOverrides');
+        if (resetBtn) resetBtn.style.display = hasOverride ? 'inline-block' : 'none';
+    }
+
+    async function saveSiteOverride(key, value) {
+        if (!currentDomain || currentDomain === '-') return;
+        const current = currentSiteOverrides || {};
+        current[key] = value;
+        currentSiteOverrides = current;
+        await browser.runtime.sendMessage({ type: 'setSiteSettings', domain: currentDomain, settings: current });
+        renderSiteOverrides(currentDomain);
+    }
+
+    ['siteBlockAds', 'siteBlockTrackers', 'siteBlockSocial', 'siteCookieConsent'].forEach(id => {
+        const keyMap = { siteBlockAds: 'blockAds', siteBlockTrackers: 'blockTrackers', siteBlockSocial: 'blockSocial', siteCookieConsent: 'cookieConsent' };
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => saveSiteOverride(keyMap[id], el.checked));
+    });
+
+    const resetSiteBtn = document.getElementById('resetSiteOverrides');
+    if (resetSiteBtn) {
+        resetSiteBtn.addEventListener('click', async () => {
+            if (!currentDomain || currentDomain === '-') return;
+            currentSiteOverrides = null;
+            await browser.runtime.sendMessage({ type: 'setSiteSettings', domain: currentDomain, settings: null });
+            renderSiteOverrides(currentDomain);
+        });
+    }
+
+    // ── Broken page indicator ─────────────────────────────────────────────
+    async function checkBlockRate(domain) {
+        if (!domain || domain === '-') return;
+        try {
+            const resp = await browser.runtime.sendMessage({ type: 'getPageBlockRate', domain });
+            const warning = document.getElementById('brokenPageWarning');
+            const text = document.getElementById('brokenPageText');
+            if (!warning || !resp) return;
+            // Show warning if > 25% of requests blocked AND > 8 blocked total
+            const show = resp.rate > 0.25 && resp.blocked > 8;
+            warning.style.display = show ? 'flex' : 'none';
+            if (show && text) {
+                text.textContent = `${Math.round(resp.rate * 100)}% of requests blocked (${resp.blocked}/${resp.total}) — content may be missing.`;
+            }
+        } catch (e) { /* background unavailable */ }
+    }
+
+    const brokenPageFixBtn = document.getElementById('brokenPageFix');
+    if (brokenPageFixBtn) {
+        brokenPageFixBtn.addEventListener('click', () => {
+            // Scroll to site overrides and highlight them
+            const ovr = document.getElementById('siteOverrides');
+            if (ovr) ovr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    }
+
+    // ── Element picker ────────────────────────────────────────────────────
+    let pickerActive = false;
+
+    async function activatePicker() {
+        if (!currentDomain || currentDomain === '-') return;
+        try {
+            const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+            if (!tabs[0]) return;
+            await browser.tabs.sendMessage(tabs[0].id, { type: 'activatePicker' });
+            pickerActive = true;
+            const btn = document.getElementById('pickElement');
+            if (btn) { btn.textContent = '✕ Cancel Pick'; btn.classList.add('active'); }
+        } catch (e) { console.error('Could not activate picker:', e); }
+    }
+
+    async function deactivatePicker() {
+        try {
+            const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+            if (tabs[0]) await browser.tabs.sendMessage(tabs[0].id, { type: 'deactivatePicker' }).catch(() => {});
+        } catch (_) {}
+        pickerActive = false;
+        const btn = document.getElementById('pickElement');
+        if (btn) { btn.textContent = '🎯 Pick Element'; btn.classList.remove('active'); }
+    }
+
+    const pickBtn = document.getElementById('pickElement');
+    if (pickBtn) {
+        pickBtn.addEventListener('click', () => {
+            if (pickerActive) { deactivatePicker(); } else { activatePicker(); }
+        });
+    }
+
+    // ── Cosmetic rules management ─────────────────────────────────────────
+    async function loadCosmeticRules(domain) {
+        if (!domain || domain === '-') return;
+        try {
+            const resp = await browser.runtime.sendMessage({ type: 'getCosmeticRules', domain });
+            const rules = resp?.rules || [];
+            const section = document.getElementById('cosmeticRulesSection');
+            const list = document.getElementById('cosmeticRulesList');
+            const count = document.getElementById('cosmeticRulesCount');
+            if (!section || !list || !count) return;
+            count.textContent = rules.length;
+            section.style.display = rules.length > 0 ? 'block' : 'none';
+            list.innerHTML = '';
+            rules.forEach(selector => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span title="${selector}">${selector}</span>`;
+                const del = document.createElement('button');
+                del.textContent = '×';
+                del.title = 'Remove rule';
+                del.addEventListener('click', async () => {
+                    await browser.runtime.sendMessage({ type: 'removeCosmeticRule', domain, selector });
+                    await loadCosmeticRules(domain);
+                });
+                li.appendChild(del);
+                list.appendChild(li);
+            });
+        } catch (e) { console.error('Error loading cosmetic rules:', e); }
+    }
+
+    const clearCosmeticBtn = document.getElementById('clearCosmeticRules');
+    if (clearCosmeticBtn) {
+        clearCosmeticBtn.addEventListener('click', async () => {
+            if (!currentDomain) return;
+            const resp = await browser.runtime.sendMessage({ type: 'getCosmeticRules', domain: currentDomain });
+            for (const selector of (resp?.rules || [])) {
+                await browser.runtime.sendMessage({ type: 'removeCosmeticRule', domain: currentDomain, selector });
+            }
+            await loadCosmeticRules(currentDomain);
+        });
+    }
+
+    // ── EasyList status & update ──────────────────────────────────────────
+    async function updateEasyListStatus() {
+        const { easyListCount = 0, easyListLastFetched = 0 } = await browser.storage.local.get({
+            easyListCount: 0, easyListLastFetched: 0
+        });
+        const statusEl = document.getElementById('easyListStatus');
+        const badge = document.getElementById('easyListBadge');
+        if (statusEl) {
+            if (easyListLastFetched === 0) {
+                statusEl.textContent = 'Not yet loaded';
+            } else {
+                const ageH = Math.round((Date.now() - easyListLastFetched) / 3_600_000);
+                statusEl.textContent = `${easyListCount.toLocaleString()} domains · updated ${ageH < 1 ? 'just now' : ageH + 'h ago'}`;
+            }
+        }
+        if (badge && easyListCount > 0) badge.textContent = easyListCount.toLocaleString();
+    }
+
+    updateEasyListStatus();
+
+    const refreshEasyListBtn = document.getElementById('refreshEasyList');
+    if (refreshEasyListBtn) {
+        refreshEasyListBtn.addEventListener('click', async () => {
+            refreshEasyListBtn.textContent = '↻ Updating...';
+            refreshEasyListBtn.disabled = true;
+            try {
+                const resp = await browser.runtime.sendMessage({ type: 'refreshEasyList' });
+                refreshEasyListBtn.textContent = `✓ ${(resp?.count || 0).toLocaleString()} domains`;
+                await updateEasyListStatus();
+                setTimeout(() => { refreshEasyListBtn.textContent = '↻ Update Now'; refreshEasyListBtn.disabled = false; }, 3000);
+            } catch (e) {
+                refreshEasyListBtn.textContent = '↻ Update Now';
+                refreshEasyListBtn.disabled = false;
+            }
+        });
+    }
+
     // Handle exceptions list toggle (with DOM check)
     const toggleExceptionsListBtn = document.getElementById('toggleExceptionsList');
         if (toggleExceptionsListBtn) {
@@ -486,15 +718,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
     }
     
-    // Handle Enter key in manual entry (with DOM check)
-    const manualDomainInput = document.getElementById('manualDomain');
-        if (manualDomainInput) {
-            manualDomainInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('saveManualEntry').click();
+    // Handle "Add" button for manual exceptions
+    const saveManualEntryBtn = document.getElementById('saveManualEntry');
+    if (saveManualEntryBtn) {
+        saveManualEntryBtn.addEventListener('click', async () => {
+            const input = document.getElementById('manualDomain');
+            if (!input) return;
+            const domain = input.value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase();
+            if (!domain) return;
+            try {
+                const { exceptions = [] } = await browser.storage.local.get({ exceptions: [] });
+                if (!exceptions.includes(domain)) {
+                    const updated = [...exceptions, domain];
+                    await browser.storage.local.set({ exceptions: updated });
+                    try { await browser.runtime.sendMessage({ type: 'exceptionsUpdated', exceptions: updated }); } catch (_) {}
+                    await updateExceptionsList();
+                }
+                input.value = '';
+                const manualEntry = document.getElementById('manualEntry');
+                if (manualEntry) manualEntry.style.display = 'none';
+            } catch (e) {
+                console.error('Error adding manual exception:', e);
             }
-    });
-    
+        });
+    }
+
+    // Handle Enter key in manual entry
+    const manualDomainInput = document.getElementById('manualDomain');
+    if (manualDomainInput) {
+        manualDomainInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const btn = document.getElementById('saveManualEntry');
+                if (btn) btn.click();
+            }
+        });
+    }
+
     // Initial load of exceptions list
     await updateExceptionsList();
     
@@ -1163,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </head>
                         <body>
                             <h1>Blocking History</h1>
-                            ${blockingHistory.reverse().map(item => `
+                            ${[...blockingHistory].reverse().map(item => `
                                 <div class="history-item">
                                     <div><strong>${item.domain}</strong></div>
                                     <div>Blocked: ${item.count} items</div>
@@ -1681,8 +1940,92 @@ document.addEventListener('DOMContentLoaded', async () => {
     checkExtensionStatus();
     setInterval(checkExtensionStatus, 5000); // Check every 5 seconds
     updateRecentRequests();
-    
+
+    // ── Live Log Viewer ───────────────────────────────────────────────────
+    let liveLogActive = false;
+    let liveLogInterval = null;
+    let lastLogTs = 0;
+    let allLogEntries = [];
+
+    const liveLogToggle  = document.getElementById('liveLogToggle');
+    const liveLogLabel   = document.getElementById('liveLogLabel');
+    const liveLogsPanel  = document.getElementById('liveLogsPanel');
+    const liveLogEntries = document.getElementById('liveLogEntries');
+    const logLevelFilter = document.getElementById('logLevelFilter');
+    const logDomainFilter = document.getElementById('logDomainFilter');
+
+    function renderLogs() {
+        if (!liveLogEntries) return;
+        const levelF  = logLevelFilter?.value  || '';
+        const domainF = (logDomainFilter?.value || '').toLowerCase();
+        const filtered = allLogEntries.filter(e => {
+            if (levelF  && e.level !== levelF)        return false;
+            if (domainF && !e.msg.toLowerCase().includes(domainF)) return false;
+            return true;
+        });
+        liveLogEntries.innerHTML = filtered.slice(-100).map(e => {
+            const t = new Date(e.ts).toTimeString().slice(0, 8);
+            const msgEsc = e.msg.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `<div class="log-entry"><span class="log-ts">${t}</span><span class="log-level ${e.level}">${e.level}</span><span class="log-msg">${msgEsc}</span></div>`;
+        }).join('');
+        liveLogEntries.scrollTop = liveLogEntries.scrollHeight;
     }
+
+    async function fetchLogs() {
+        try {
+            const resp = await browser.runtime.sendMessage({
+                type: 'getLogs',
+                since: lastLogTs,
+                domain: logDomainFilter?.value || ''
+            });
+            if (resp?.logs?.length) {
+                allLogEntries.push(...resp.logs);
+                if (allLogEntries.length > 500) allLogEntries = allLogEntries.slice(-500);
+                lastLogTs = allLogEntries[allLogEntries.length - 1].ts;
+                renderLogs();
+            }
+        } catch (_) {}
+    }
+
+    function startLiveLogs() {
+        liveLogActive = true;
+        if (liveLogsPanel) liveLogsPanel.style.display = 'block';
+        if (liveLogLabel)  liveLogLabel.textContent = 'Live';
+        fetchLogs(); // immediate first fetch
+        liveLogInterval = setInterval(fetchLogs, 1500);
+    }
+
+    function stopLiveLogs() {
+        liveLogActive = false;
+        if (liveLogInterval) { clearInterval(liveLogInterval); liveLogInterval = null; }
+        if (liveLogsPanel) liveLogsPanel.style.display = 'none';
+        if (liveLogLabel)  liveLogLabel.textContent = 'Off';
+    }
+
+    if (liveLogToggle) {
+        liveLogToggle.addEventListener('change', () => {
+            if (liveLogToggle.checked) startLiveLogs(); else stopLiveLogs();
+        });
+    }
+
+    if (logLevelFilter)  logLevelFilter.addEventListener('change', renderLogs);
+    if (logDomainFilter) logDomainFilter.addEventListener('input',  renderLogs);
+
+    document.getElementById('clearLogs')?.addEventListener('click', async () => {
+        allLogEntries = [];
+        lastLogTs = 0;
+        await browser.runtime.sendMessage({ type: 'clearLogs' }).catch(() => {});
+        if (liveLogEntries) liveLogEntries.innerHTML = '';
+    });
+
+    document.getElementById('copyLogs')?.addEventListener('click', () => {
+        const text = allLogEntries.map(e => `${new Date(e.ts).toISOString()} [${e.level}] ${e.msg}`).join('\n');
+        navigator.clipboard.writeText(text).catch(() => {
+            // fallback: show in alert
+            alert(text.slice(0, 2000));
+        });
+    });
+
     } catch (error) {
         console.error('Error initializing popup:', error);
         // Show error to user
@@ -1697,11 +2040,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function formatBytes(bytes) {
-    if (bytes === 0) return '0 KB';
+    if (!bytes || bytes <= 0) return '0 B';
     const k = 1024;
-    const sizes = ['KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+    if (i === 0) return bytes + ' B';
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
 // Performance Metrics
@@ -1715,20 +2059,18 @@ async function updatePerformanceMetrics() {
     try {
         const loadSpeedElement = document.getElementById('loadSpeed');
         const batterySavedElement = document.getElementById('batterySaved');
-        
         if (!loadSpeedElement || !batterySavedElement) return;
-        
+
         // Calculate average page load improvement
         const avgLoadTime = performanceData.pageLoadTimes.length > 0
             ? performanceData.pageLoadTimes.reduce((a, b) => a + b, 0) / performanceData.pageLoadTimes.length
             : performanceData.baselineLoadTime;
-        
         const improvement = ((performanceData.baselineLoadTime - avgLoadTime) / performanceData.baselineLoadTime) * 100;
         loadSpeedElement.textContent = improvement > 0 ? `+${Math.round(improvement)}%` : '0%';
-        loadSpeedElement.style.color = improvement > 0 ? 'var(--primary-color)' : 'var(--text-secondary)';
-        
-        // Estimate battery savings (rough calculation)
-        const estimatedBatterySaved = Math.min(15, Math.round((stats.totalBlocked / 100) * 0.5));
+
+        // Read totalBlocked from storage directly to avoid scope dependency
+        const { totalBlocked = 0 } = await browser.storage.local.get({ totalBlocked: 0 });
+        const estimatedBatterySaved = Math.min(15, Math.round((totalBlocked / 100) * 0.5));
         batterySavedElement.textContent = `${estimatedBatterySaved}%`;
     } catch (error) {
         console.error('Error updating performance metrics:', error);
@@ -1764,25 +2106,30 @@ function drawTrendChart(canvasId, data) {
     const padding = 20;
     const chartWidth = width - padding * 2;
     const chartHeight = height - padding * 2;
-    
+    // Guard: single point or all-zero data
+    const safeMax = maxValue > 0 ? maxValue : 1;
+    const xOf = (index) => data.length > 1
+        ? padding + (index / (data.length - 1)) * chartWidth
+        : padding + chartWidth / 2;
+    const yOf = (value) => height - padding - (value / safeMax) * chartHeight;
+
     data.forEach((value, index) => {
-        const x = padding + (index / (data.length - 1)) * chartWidth;
-        const y = height - padding - (value / maxValue) * chartHeight;
-        
+        const x = xOf(index);
+        const y = yOf(value);
         if (index === 0) {
             ctx.moveTo(x, y);
         } else {
             ctx.lineTo(x, y);
         }
     });
-    
+
     ctx.stroke();
-    
+
     // Draw points
-    ctx.fillStyle = 'var(--primary-color)';
+    ctx.fillStyle = '#30D158';
     data.forEach((value, index) => {
-        const x = padding + (index / (data.length - 1)) * chartWidth;
-        const y = height - padding - (value / maxValue) * chartHeight;
+        const x = xOf(index);
+        const y = yOf(value);
         ctx.beginPath();
         ctx.arc(x, y, 3, 0, Math.PI * 2);
         ctx.fill();

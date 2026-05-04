@@ -3,6 +3,137 @@ if (typeof browser === 'undefined') {
     window.browser = typeof chrome !== 'undefined' ? chrome : {};
 }
 
+// Mail Online / GAM: native + injected DOM work caused white screens; rely on webRequest only here.
+const ADIOS_LIGHT_DOM = (() => {
+    try {
+        const h = (typeof location !== 'undefined' ? location.hostname : '').toLowerCase();
+        return h.includes('dailymail.');
+    } catch (_) {
+        return false;
+    }
+})();
+
+// ── Anti-adblock wall circumvention ───────────────────────────────────────
+// Runs before anything else so overlays are gone before the user sees them.
+if (!ADIOS_LIGHT_DOM) (function circumventAntiAdblock() {
+    // 1. Inject a "bait" element with class/ID names that detection scripts probe.
+    //    We make it non-zero in size so getComputedStyle checks pass.
+    //    Must work at document_start (before body exists) — appends to <html> if needed.
+    function injectBait() {
+        if (document.getElementById('__adios_bait__')) return;
+        const bait = document.createElement('div');
+        bait.id = '__adios_bait__';
+        // Class names probed by common detection libraries (Admiral, FuckAdBlock, BlockAdBlock, Oriel, etc.)
+        bait.className = 'pub_300x250 pub_300x250m pub_728x90 text-ad textAd text_ad ads adsbox ad-placement ad-banner ad-unit advertisement';
+        bait.style.cssText = 'width:1px!important;height:1px!important;position:absolute!important;left:-10000px!important;top:-10000px!important;display:block!important;visibility:visible!important;opacity:1!important';
+        const parent = document.body || document.documentElement;
+        if (parent) parent.appendChild(bait);
+    }
+
+    // Inject bait immediately (document_start — body may not exist yet, retry shortly)
+    injectBait();
+    if (!document.body) {
+        const earlyObserver = new MutationObserver(() => { injectBait(); earlyObserver.disconnect(); });
+        earlyObserver.observe(document.documentElement, { childList: true });
+    }
+
+    // 2. Remove known anti-adblock overlay elements (always remove — no size/position heuristic).
+    const WALL_SELECTORS_FORCE = [
+        '#mol-ads-lockdown',        '.mol-ads-lockdown',
+        '#mol-ads-modal',           '.mol-ads-modal',
+        '#admiral-outer-container', '.admiral-widget',
+        '.fc-ab-root',              '#fc-ab-root',
+        'iframe[src*="fundingchoicesmessages.google.com"]',
+        'iframe[src*="webcontentassessor.com"]',
+    ];
+
+    // 2b. Broader patterns — only remove when clearly an overlay (avoid nuking in-page copy).
+    const WALL_SELECTORS = [
+        // Generic patterns
+        '[id*="adblock-wall"]',     '[class*="adblock-wall"]',
+        '[id*="adblock-notice"]',   '[class*="adblock-notice"]',
+        '[id*="adblocker"]',        '[class*="adblocker"]',
+        '[id*="anti-adblock"]',     '[class*="anti-adblock"]',
+        '[id*="ad-block-message"]', '[class*="ad-block-message"]',
+        '[id*="adblock-modal"]',    '[class*="adblock-modal"]',
+        '#disable-adblock',         '.disable-adblock',
+        '#adblock-overlay',         '.adblock-overlay',
+        // Admiral (outer container also in FORCE list)
+        '[id*="admiral"]',          '[class*="admiral"]',
+        // Daily Mail (also in FORCE list)
+        // Other common platforms
+        '.freestar-ad-blocker',     '#freestar-ad-blocker',
+        '.crx-overlay',             '#crx-overlay',
+        '[id*="adrecovery"]',       '[class*="adrecovery"]',
+        '[id*="fc-ab"]',            '[class*="fc-ab"]',
+        '.sp_message_container',    // SourcePoint consent/adblock walls
+        '[class*="adblock-banner"]',
+        // Google Funding Choices (also in FORCE list)
+        // Oriel / webcontentassessor (Daily Mail)
+        '[class*="oriel"]',         '[id*="oriel"]',
+        '.wca-overlay',             '#wca-overlay',
+        '[class*="mol-pro"]',       // Daily Mail M+ subscription wall
+    ];
+
+    function cLog(level, msg) {
+        browser.runtime.sendMessage({ type: 'contentLog', level, msg }).catch(() => {});
+    }
+
+    function removeWalls() {
+        for (const sel of WALL_SELECTORS_FORCE) {
+            try {
+                document.querySelectorAll(sel).forEach(el => {
+                    cLog('ANTI', `Removed wall (force): ${sel} | tag=${el.tagName} id="${el.id}"`);
+                    el.remove();
+                });
+            } catch (_) {}
+        }
+        for (const sel of WALL_SELECTORS) {
+            try {
+                document.querySelectorAll(sel).forEach(el => {
+                    const rect = el.getBoundingClientRect();
+                    const style = window.getComputedStyle(el);
+                    const isOverlay = style.position === 'fixed' || style.position === 'absolute';
+                    const hasSize   = rect.width > 50 || rect.height > 50;
+                    if (isOverlay || hasSize) {
+                        cLog('ANTI', `Removed wall: ${sel} | tag=${el.tagName} id="${el.id}" class="${el.className.toString().slice(0, 60)}"`);
+                        el.remove();
+                    }
+                });
+            } catch (_) {}
+        }
+
+        // Restore body/html scroll that walls lock
+        try {
+            const html = document.documentElement;
+            const body = document.body;
+            if (body && body.style.overflow === 'hidden')       { body.style.overflow = '';        cLog('ANTI', 'Restored body overflow'); }
+            if (html && html.style.overflow === 'hidden')       { html.style.overflow = '';        cLog('ANTI', 'Restored html overflow'); }
+            if (body && body.style.pointerEvents === 'none')    { body.style.pointerEvents = '';   cLog('ANTI', 'Restored body pointerEvents'); }
+        } catch (_) {}
+    }
+
+    queueMicrotask(() => { injectBait(); removeWalls(); });
+
+    // Run as early as possible, then repeatedly for dynamic walls
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => { injectBait(); removeWalls(); });
+    } else {
+        injectBait(); removeWalls();
+    }
+    window.addEventListener('load', () => { injectBait(); removeWalls(); });
+
+    // Watch for walls injected dynamically
+    const wallObserver = new MutationObserver(() => removeWalls());
+    const startWallObserver = () => {
+        if (document.body) {
+            wallObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
+        }
+    };
+    if (document.body) startWallObserver();
+    else document.addEventListener('DOMContentLoaded', startWallObserver);
+})();
+
 // Store observers and timers for cleanup
 let mutationObserver = null;
 let bodyObserver = null;
@@ -319,7 +450,11 @@ function blockCookieConsent() {
 }
 
 // Anti-fingerprinting protection
+// Guard to prevent wrapping native methods more than once
+let _antiFingerprintingApplied = false;
 function applyAntiFingerprinting() {
+    if (_antiFingerprintingApplied) return;
+    _antiFingerprintingApplied = true;
     // Override common fingerprinting methods
     if (typeof navigator !== 'undefined') {
         // Spoof canvas fingerprinting
@@ -370,10 +505,16 @@ let settings = {
 };
 
 // Load settings and remove ads immediately
-browser.runtime.sendMessage({ type: 'getAdSelectors' })
+browser.runtime.sendMessage({ type: 'getAdSelectors', domain: window.location.hostname })
     .then(response => {
         if (response && response.settings) {
             settings = { ...settings, ...response.settings };
+        }
+        // If this page is explicitly excepted, do nothing at all
+        if (response && response.isExcepted) return;
+        if (ADIOS_LIGHT_DOM) {
+            if (settings.antiFingerprint) applyAntiFingerprinting();
+            return;
         }
         if (settings.enabled) {
             // Remove ads immediately
@@ -382,7 +523,6 @@ browser.runtime.sendMessage({ type: 'getAdSelectors' })
             // Also remove Google ads specifically (including Chrome promotional ads)
             const googleAdSelectors = [
                 'ins.adsbygoogle',
-                'div[id*="google_ads"]',
                 'div[id*="google-ad"]',
                 'div[class*="adsbygoogle"]',
                 'div[id^="google_ads_iframe"]',
@@ -410,67 +550,10 @@ browser.runtime.sendMessage({ type: 'getAdSelectors' })
                 'article[id*="google"][class*="ad"]'
             ];
             removeAds(googleAdSelectors);
-            
-            // Aggressively remove Chrome ads and Google ads by text pattern
-            const removeGoogleAdsByText = () => {
-                const allElements = Array.from(document.querySelectorAll('div, a, section, article, aside, span, p'));
-                allElements.forEach(el => {
-                    const text = (el.textContent || '').trim();
-                    const innerHTML = (el.innerHTML || '').toLowerCase();
-                    
-                    // Check for Google Chrome promotional ads
-                    if ((text.includes('Switch to Google Chrome') || 
-                         text.includes('Browse securely with Chrome') ||
-                         text.includes('Download Chrome') ||
-                         text.includes('Get Chrome')) &&
-                        text.length < 500) {
-                        const hasChromeLink = el.querySelector('a[href*="chrome"]') || 
-                                             el.querySelector('a[href*="google.com/chrome"]') ||
-                                             el.closest('a[href*="chrome"]');
-                        const hasButton = el.querySelector('button, [role="button"], [class*="button"]');
-                        
-                        if (hasChromeLink || hasButton || el.tagName === 'A') {
-                            try {
-                                el.style.display = 'none';
-                                el.style.visibility = 'hidden';
-                                el.style.height = '0';
-                                el.style.overflow = 'hidden';
-                                el.remove();
-                            } catch (e) {
-                                // Ignore errors
-                            }
-                        }
-                    }
-                    
-                    // Check for Google Ads by common text patterns
-                    if ((text.includes('AdChoices') || 
-                         text.includes('Advertisement') ||
-                         innerHTML.includes('adsbygoogle') ||
-                         innerHTML.includes('google_ads') ||
-                         innerHTML.includes('doubleclick')) &&
-                        (el.querySelector('iframe[src*="google"]') ||
-                         el.querySelector('iframe[src*="doubleclick"]') ||
-                         el.querySelector('ins.adsbygoogle') ||
-                         el.className.includes('ad') ||
-                         el.id.includes('ad'))) {
-                        try {
-                            el.style.display = 'none';
-                            el.style.visibility = 'hidden';
-                            el.style.height = '0';
-                            el.style.overflow = 'hidden';
-                            el.remove();
-                        } catch (e) {
-                            // Ignore errors
-                        }
-                    }
-                });
-            };
-            
-            // Run immediately and then again after delays to catch dynamically loaded ads
-            removeGoogleAdsByText();
-            setTimeout(removeGoogleAdsByText, 500);
-            setTimeout(removeGoogleAdsByText, 1500);
-            setTimeout(removeGoogleAdsByText, 3000);
+            // Intentionally no "remove by innerHTML contains doubleclick + class has ad" pass:
+            // on GAM publishers (e.g. Daily Mail) many layout wrappers match *ad* and embed ad iframes,
+            // so removing those ancestors deletes most of the page (white screen). Network blocking +
+            // explicit selectors above are the safe approach (same class of issue as over-broad cosmetic filters).
         }
         if (settings.cookieConsent) {
             blockCookieConsent();
@@ -490,18 +573,19 @@ function debouncedAdRemoval() {
     }
     
     debounceTimer = setTimeout(() => {
-        browser.runtime.sendMessage({ type: "getAdSelectors" })
+        browser.runtime.sendMessage({ type: "getAdSelectors", domain: window.location.hostname })
             .then(response => {
                 if (response && response.settings) {
                     settings = { ...settings, ...response.settings };
                 }
+                if (response && response.isExcepted) return;
+                if (ADIOS_LIGHT_DOM) return;
                 if (settings.enabled) {
                     removeAds(response?.selectors || []);
                     
                     // Also aggressively remove Google ads
                     const googleAdSelectors = [
                         'ins.adsbygoogle',
-                        'div[id*="google_ads"]',
                         'div[id*="google-ad"]',
                         'div[class*="adsbygoogle"]',
                         'div[id^="google_ads_iframe"]',
@@ -528,58 +612,6 @@ function debouncedAdRemoval() {
                         '[id*="chrome"][id*="ad"]'
                     ];
                     removeAds(googleAdSelectors);
-                    
-                    // Also remove by text content - enhanced detection
-                    const removeGoogleAdsByText = () => {
-                        const allElements = Array.from(document.querySelectorAll('div, a, section, article, aside, span, p'));
-                        allElements.forEach(el => {
-                            const text = (el.textContent || '').trim();
-                            const innerHTML = (el.innerHTML || '').toLowerCase();
-                            
-                            // Check for Google Chrome promotional ads
-                            if ((text.includes('Switch to Google Chrome') || 
-                                 text.includes('Browse securely with Chrome') ||
-                                 text.includes('Download Chrome') ||
-                                 text.includes('Get Chrome')) &&
-                                text.length < 500) {
-                                const hasChromeLink = el.querySelector('a[href*="chrome"]') || 
-                                                     el.querySelector('a[href*="google.com/chrome"]') ||
-                                                     el.closest('a[href*="chrome"]');
-                                const hasButton = el.querySelector('button, [role="button"], [class*="button"]');
-                                
-                                if (hasChromeLink || hasButton || el.tagName === 'A') {
-                                    try {
-                                        el.style.display = 'none';
-                                        el.style.visibility = 'hidden';
-                                        el.style.height = '0';
-                                        el.style.overflow = 'hidden';
-                                        el.remove();
-                                    } catch (e) {}
-                                }
-                            }
-                            
-                            // Check for Google Ads by common text patterns
-                            if ((text.includes('AdChoices') || 
-                                 text.includes('Advertisement') ||
-                                 innerHTML.includes('adsbygoogle') ||
-                                 innerHTML.includes('google_ads') ||
-                                 innerHTML.includes('doubleclick')) &&
-                                (el.querySelector('iframe[src*="google"]') ||
-                                 el.querySelector('iframe[src*="doubleclick"]') ||
-                                 el.querySelector('ins.adsbygoogle') ||
-                                 el.className.includes('ad') ||
-                                 el.id.includes('ad'))) {
-                                try {
-                                    el.style.display = 'none';
-                                    el.style.visibility = 'hidden';
-                                    el.style.height = '0';
-                                    el.style.overflow = 'hidden';
-                                    el.remove();
-                                } catch (e) {}
-                            }
-                        });
-                    };
-                    removeGoogleAdsByText();
                 }
                 // Only call cookie consent handler if we haven't already handled it
                 // and limit how often we check (every 2 seconds max)
@@ -594,41 +626,28 @@ function debouncedAdRemoval() {
     }, DEBOUNCE_DELAY);
 }
 
-// Create observer for dynamically loaded content with debouncing
-mutationObserver = new MutationObserver((mutations) => {
-    // Only process if there are actual DOM changes
-    const hasRelevantChanges = mutations.some(mutation => 
-        mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0
-    );
-    
-    if (hasRelevantChanges) {
-        debouncedAdRemoval();
-    }
-});
-
-// Start observing DOM changes when body is available
-if (document.body) {
-    mutationObserver.observe(document.body, {
-        childList: true,
-        subtree: true
+// Create observer for dynamically loaded content with debouncing (skip on light-DOM hosts)
+if (!ADIOS_LIGHT_DOM) {
+    mutationObserver = new MutationObserver((mutations) => {
+        const hasRelevantChanges = mutations.some(mutation =>
+            mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0
+        );
+        if (hasRelevantChanges) debouncedAdRemoval();
     });
-} else {
-    // Wait for body to be available
-    bodyObserver = new MutationObserver(() => {
-        if (document.body && mutationObserver) {
-            mutationObserver.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-            if (bodyObserver) {
-                bodyObserver.disconnect();
-                bodyObserver = null;
+    if (document.body) {
+        mutationObserver.observe(document.body, { childList: true, subtree: true });
+    } else {
+        bodyObserver = new MutationObserver(() => {
+            if (document.body && mutationObserver) {
+                mutationObserver.observe(document.body, { childList: true, subtree: true });
+                if (bodyObserver) {
+                    bodyObserver.disconnect();
+                    bodyObserver = null;
+                }
             }
-        }
-    });
-    bodyObserver.observe(document.documentElement, {
-        childList: true
-    });
+        });
+        bodyObserver.observe(document.documentElement, { childList: true });
+    }
 }
 
 // Reset cookie consent handling on navigation
@@ -682,18 +701,126 @@ window.addEventListener('load', () => {
     cookieConsentAttempts = 0;
 });
 
-// Listen for settings updates
+// ── Cosmetic rules (user-created element hides) ─────────────────────────
+let cosmeticStyleEl = null;
+
+function applyCosmeticRules(rules) {
+    if (!rules || rules.length === 0) return;
+    if (!cosmeticStyleEl) {
+        cosmeticStyleEl = document.createElement('style');
+        cosmeticStyleEl.id = '__adios_cosmetic__';
+        document.head.appendChild(cosmeticStyleEl);
+    }
+    cosmeticStyleEl.textContent = rules.map(r => `${r}{display:none!important}`).join('\n');
+}
+
+if (!ADIOS_LIGHT_DOM) {
+    browser.runtime.sendMessage({ type: 'getCosmeticRules', domain: window.location.hostname })
+        .then(resp => { if (resp?.rules?.length) applyCosmeticRules(resp.rules); })
+        .catch(() => {});
+}
+
+// ── Element picker ──────────────────────────────────────────────────────
+let pickerMode = false;
+let pickerHovered = null;
+let pickerBanner = null;
+
+function generateSelector(el) {
+    if (el.id && /^[a-zA-Z]/.test(el.id) && document.querySelectorAll('#' + CSS.escape(el.id)).length === 1) {
+        return '#' + CSS.escape(el.id);
+    }
+    if (el.classList.length > 0) {
+        const stable = Array.from(el.classList)
+            .filter(c => !/^(active|hover|focus|selected|open|show|hide|visible|hidden|fade|animate|transition|is-|has-)/.test(c))
+            .slice(0, 3);
+        if (stable.length > 0) {
+            const sel = el.tagName.toLowerCase() + '.' + stable.map(c => CSS.escape(c)).join('.');
+            if (document.querySelectorAll(sel).length === 1) return sel;
+        }
+    }
+    // Path-based fallback (up to 3 ancestors)
+    let path = [], cur = el;
+    for (let i = 0; i < 3 && cur && cur !== document.body; i++) {
+        const parent = cur.parentElement;
+        if (!parent) break;
+        const idx = Array.from(parent.children).indexOf(cur) + 1;
+        path.unshift(`${cur.tagName.toLowerCase()}:nth-child(${idx})`);
+        cur = parent;
+    }
+    return path.join(' > ');
+}
+
+function activatePickerMode() {
+    pickerMode = true;
+    document.body.style.cursor = 'crosshair';
+
+    // Show floating instruction banner
+    pickerBanner = document.createElement('div');
+    pickerBanner.id = '__adios_picker_banner__';
+    pickerBanner.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:2147483647;background:rgba(30,30,30,0.92);color:#fff;padding:8px 18px;border-radius:20px;font:500 13px/1 -apple-system,sans-serif;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,0.4)';
+    pickerBanner.textContent = '🎯 Click an element to hide it — press Esc to cancel';
+    document.body.appendChild(pickerBanner);
+
+    document.addEventListener('mouseover', pickerMouseOver, true);
+    document.addEventListener('mouseout',  pickerMouseOut,  true);
+    document.addEventListener('click',     pickerClick,     true);
+    document.addEventListener('keydown',   pickerKeyDown,   true);
+}
+
+function deactivatePickerMode() {
+    pickerMode = false;
+    document.body.style.cursor = '';
+    if (pickerHovered) { pickerHovered.style.outline = ''; pickerHovered = null; }
+    if (pickerBanner) { pickerBanner.remove(); pickerBanner = null; }
+    document.removeEventListener('mouseover', pickerMouseOver, true);
+    document.removeEventListener('mouseout',  pickerMouseOut,  true);
+    document.removeEventListener('click',     pickerClick,     true);
+    document.removeEventListener('keydown',   pickerKeyDown,   true);
+}
+
+function pickerMouseOver(e) {
+    if (pickerHovered) pickerHovered.style.outline = '';
+    pickerHovered = e.target;
+    if (pickerHovered && pickerHovered !== pickerBanner) {
+        pickerHovered.style.outline = '2px solid #FF3B30';
+    }
+}
+function pickerMouseOut(e) {
+    if (e.target === pickerHovered) { e.target.style.outline = ''; pickerHovered = null; }
+}
+function pickerKeyDown(e) {
+    if (e.key === 'Escape') { deactivatePickerMode(); }
+}
+function pickerClick(e) {
+    e.preventDefault(); e.stopPropagation();
+    const el = e.target;
+    if (!el || el === pickerBanner) return;
+    const selector = generateSelector(el);
+    el.style.display = 'none'; // hide immediately
+    deactivatePickerMode();
+    browser.runtime.sendMessage({
+        type: 'addCosmeticRule',
+        domain: window.location.hostname,
+        selector
+    }).catch(() => {});
+}
+
+// Listen for settings updates + picker commands
 browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'settingsUpdated') {
         settings = { ...settings, ...request.settings };
-        if (settings.cookieConsent) {
-            blockCookieConsent();
-        }
-        if (settings.antiFingerprint) {
-            applyAntiFingerprinting();
+        if (!ADIOS_LIGHT_DOM && settings.cookieConsent) blockCookieConsent();
+        if (settings.antiFingerprint) applyAntiFingerprinting();
+    }
+    if (request.type === 'activatePicker')   activatePickerMode();
+    if (request.type === 'deactivatePicker') deactivatePickerMode();
+    if (request.type === 'applyNewCosmeticRule') {
+        const existing = cosmeticStyleEl ? cosmeticStyleEl.textContent : '';
+        if (cosmeticStyleEl) {
+            cosmeticStyleEl.textContent = existing + `\n${request.selector}{display:none!important}`;
         }
     }
-    return true; // Keep channel open for async response
+    return true;
 });
 
 // Cleanup function

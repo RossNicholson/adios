@@ -3,47 +3,41 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
-
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-
     <link rel="stylesheet" href="../Style.css">
     <script src="../Script.js" defer></script>
 </head>
 <body>
-    <img src="../Icon.png" width="128" height="128" alt="Adios Icon">
-    <p class="platform-ios">App installed! Now follow these steps to enable Adios:</p>
-    <ol class="platform-ios setup-steps">
-        <li>Open the Settings app on your iPhone or iPad</li>
-        <li>Tap <strong>Apps</strong></li>
-        <li>Tap <strong>Safari</strong></li>
-        <li>Tap <strong>Extensions</strong></li>
-        <li>Find <strong>Adios</strong> in the list</li>
-        <li>Toggle the switch to turn it <strong>ON</strong></li>
-        <li>When prompted, tap <strong>Allow</strong> to grant permission to access web content</li>
-    </ol>
-    <p class="platform-ios permission-notice">
-        <strong>Why does Adios need permission?</strong><br>
-        Adios needs access to web content to identify and block ads, trackers, and other unwanted content. When you enable the extension, Safari will ask for permission to access websites you visit.
-        <br><br>
-        <strong>Your privacy is protected:</strong> Adios never collects, stores, or transmits any personal information, including passwords, credit card details, or browsing history. All blocking happens locally on your device.
-    </p>
-    <p class="platform-mac state-unknown">To enable Adios:</p>
-    <ol class="platform-mac setup-steps">
-        <li>Open Safari</li>
-        <li>Click Safari in the menu bar</li>
-        <li>Click Settings...</li>
-        <li>Click Extensions</li>
-        <li>Find Adios and check the box to enable it</li>
-    </ol>
-    <p class="platform-mac permission-notice">
-        Safari will ask for permission to access all websites. This access is required - Adios needs to see web page content to identify and block ads effectively.
-        While Adios can see the content of web pages, we never collect, store, or transmit any of your data. Your privacy is our priority.
-    </p>
-    <p class="platform-mac state-on">Adios's extension is currently on. You can turn it off in Safari Extensions preferences.</p>
-    <p class="platform-mac state-off">Adios's extension is currently off. You can turn it on in Safari Extensions preferences.</p>
-    <p class="platform-ios state-on">Adios is currently enabled. You can manage it in Settings > Apps > Safari > Extensions.</p>
-    <p class="platform-ios state-off">Adios is currently disabled. To enable it, go to Settings > Apps > Safari > Extensions and turn on Adios.</p>
-    <p class="platform-ios state-unknown">To enable Adios, go to Settings > Apps > Safari > Extensions and turn on the Adios extension.</p>
-    <button class="platform-mac open-preferences">Quit and Open Safari Extensions Preferences…</button>
+    <div class="app-card">
+        <img src="../Icon.png" class="app-icon" alt="Adios">
+
+        <div class="title-row">
+            <h1 class="app-title">Adios</h1>
+            <p class="app-subtitle">Ad Blocker for Safari</p>
+        </div>
+
+        <!-- Status badges -->
+        <span class="status-badge state-on platform-mac">Extension is enabled</span>
+        <span class="status-badge state-off platform-mac">Extension is disabled</span>
+
+        <!-- macOS setup instructions -->
+        <div class="setup-card platform-mac state-unknown">
+            <p class="setup-card-title">How to enable</p>
+            <ol class="setup-steps">
+                <li>Open Safari</li>
+                <li>Click <strong>Safari</strong> in the menu bar</li>
+                <li>Click <strong>Settings…</strong></li>
+                <li>Click <strong>Extensions</strong></li>
+                <li>Find <strong>Adios</strong> and check the box</li>
+            </ol>
+        </div>
+
+        <p class="privacy-note">
+            Adios never collects, stores, or transmits any personal data.
+            All blocking happens locally on your Mac.
+        </p>
+
+        <button class="open-preferences platform-mac">Quit and Open Safari Settings…</button>
+    </div>
 </body>
 </html>

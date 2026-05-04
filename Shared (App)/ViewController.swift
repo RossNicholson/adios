@@ -36,6 +36,9 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
             return
         }
         
+        // Transparent background so the NSVisualEffectView vibrancy shows through
+        self.webView.setValue(false, forKey: "drawsBackground")
+
         self.webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceURL)
     }
 

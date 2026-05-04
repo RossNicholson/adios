@@ -2,90 +2,236 @@
     -webkit-user-select: none;
     -webkit-user-drag: none;
     cursor: default;
+    box-sizing: border-box;
 }
 
 :root {
     color-scheme: light dark;
 
-    --spacing: 16px;
+    --accent: #30D158;
+    --accent-dim: rgba(48, 209, 88, 0.15);
+    --danger: #FF453A;
+
+    --text-primary: rgba(0, 0, 0, 0.85);
+    --text-secondary: rgba(0, 0, 0, 0.50);
+
+    --card-bg: rgba(255, 255, 255, 0.62);
+    --card-border: rgba(0, 0, 0, 0.07);
+    --card-shadow: 0 2px 20px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.06);
+
+    --step-bg: rgba(255, 255, 255, 0.45);
+
+    --btn-bg: rgba(255, 255, 255, 0.72);
+    --btn-border: rgba(0, 0, 0, 0.10);
+    --btn-shadow: 0 1px 6px rgba(0, 0, 0, 0.10);
 }
 
-html {
+@media (prefers-color-scheme: dark) {
+    :root {
+        --text-primary: rgba(255, 255, 255, 0.90);
+        --text-secondary: rgba(255, 255, 255, 0.48);
+
+        --card-bg: rgba(40, 40, 42, 0.72);
+        --card-border: rgba(255, 255, 255, 0.08);
+        --card-shadow: 0 2px 20px rgba(0, 0, 0, 0.35), 0 1px 4px rgba(0, 0, 0, 0.20);
+
+        --step-bg: rgba(58, 58, 60, 0.55);
+
+        --btn-bg: rgba(58, 58, 60, 0.80);
+        --btn-border: rgba(255, 255, 255, 0.10);
+        --btn-shadow: 0 1px 6px rgba(0, 0, 0, 0.30);
+    }
+}
+
+html, body {
     height: 100%;
+    margin: 0;
+    padding: 0;
+    background: transparent;
 }
 
 body {
     display: flex;
     align-items: center;
     justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+    color: var(--text-primary);
+    padding: 32px 24px;
+}
+
+/* Platform/state visibility */
+body:not(.platform-mac, .platform-ios) :is(.platform-mac, .platform-ios) { display: none; }
+body.platform-ios .platform-mac { display: none; }
+body.platform-mac .platform-ios { display: none; }
+body:not(.state-on, .state-off) :is(.state-on, .state-off) { display: none; }
+body.state-on :is(.state-off, .state-unknown) { display: none; }
+body.state-off :is(.state-on, .state-unknown) { display: none; }
+
+/* Main card */
+.app-card {
+    width: 100%;
+    max-width: 480px;
+    background: var(--card-bg);
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid var(--card-border);
+    border-radius: 24px;
+    box-shadow: var(--card-shadow);
+    padding: 36px 32px 32px;
+    display: flex;
     flex-direction: column;
+    align-items: center;
+    gap: 24px;
+}
 
-    gap: var(--spacing);
-    margin: var(--spacing) calc(var(--spacing) * 2);
-    height: 100%;
+/* Icon */
+.app-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 18px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
 
-    font: -apple-system-short-body;
+/* Title row */
+.title-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
     text-align: center;
 }
 
-body:not(.platform-mac, .platform-ios) :is(.platform-mac, .platform-ios) {
-    display: none;
+.app-title {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin: 0;
+    color: var(--text-primary);
 }
 
-body.platform-ios .platform-mac {
-    display: none;
+.app-subtitle {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin: 0;
 }
 
-body.platform-mac .platform-ios {
-    display: none;
+/* Status badge */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
 }
 
-body.platform-ios .platform-mac {
-    display: none;
+.status-badge.state-on {
+    background: var(--accent-dim);
+    color: var(--accent);
 }
 
-body:not(.state-on, .state-off) :is(.state-on, .state-off) {
-    display: none;
+.status-badge.state-off {
+    background: rgba(255, 69, 58, 0.12);
+    color: var(--danger);
 }
 
-body.state-on :is(.state-off, .state-unknown) {
-    display: none;
+.status-badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
 }
 
-body.state-off :is(.state-on, .state-unknown) {
-    display: none;
+/* Setup steps card */
+.setup-card {
+    width: 100%;
+    background: var(--step-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 20px 20px 16px;
 }
 
-button {
-    font-size: 1em;
+.setup-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 14px 0;
 }
 
 .setup-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     text-align: left;
-    margin: 12px auto;
-    max-width: 500px;
-    padding-left: 20px;
 }
 
 .setup-steps li {
-    margin-bottom: 8px;
-    line-height: 1.4;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-primary);
 }
 
-.permission-notice {
-    font-size: 0.9em;
-    color: #666;
-    max-width: 500px;
-    margin: 12px auto;
-    padding: 15px;
-    background: #f5f5f7;
-    border-radius: 10px;
-    line-height: 1.4;
+.setup-steps li::before {
+    content: counter(step);
+    counter-increment: step;
+    min-width: 20px;
+    height: 20px;
+    background: var(--accent);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 1px;
+    flex-shrink: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-    .permission-notice {
-        color: #999;
-        background: #1c1c1e;
-    }
+.setup-steps {
+    counter-reset: step;
+}
+
+/* Privacy notice */
+.privacy-note {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    line-height: 1.5;
+    max-width: 380px;
+}
+
+/* CTA Button */
+button.open-preferences {
+    width: 100%;
+    padding: 12px 20px;
+    background: var(--btn-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--btn-border);
+    border-radius: 12px;
+    box-shadow: var(--btn-shadow);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--accent);
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+button.open-preferences:hover {
+    opacity: 0.85;
+}
+
+button.open-preferences:active {
+    transform: scale(0.98);
 }
