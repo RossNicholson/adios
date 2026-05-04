@@ -1,158 +1,78 @@
-# Adios — Safari Ad Blocker for Mac
+# Adios
+
+**Adios** is a free, open-source ad and tracker blocker for **Safari on Mac**. Install a small app, turn on the Safari extension, and browse with fewer ads, fewer trackers, and simple controls when a site needs an exception.
 
 <p align="center">
-  <img src="Shared (App)/Assets.xcassets/AppIcon.appiconset/rosconic_ios_app_icon_of_a_shield_ef787c77-f027-4eee-af65-c068c82fcac3.png" width="128" height="128" alt="Adios Logo">
+  <img src="Shared (App)/Assets.xcassets/AppIcon.appiconset/rosconic_ios_app_icon_of_a_shield_ef787c77-f027-4eee-af65-c068c82fcac3.png" width="128" height="128" alt="Adios app icon">
 </p>
 
 <p align="center">
-  <a href="https://github.com/rossnicholson/adios/releases/latest"><img src="https://img.shields.io/github/v/release/rossnicholson/adios" alt="Latest Release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/rossnicholson/adios" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%2026%2B-blue" alt="macOS 26+">
-  <img src="https://img.shields.io/badge/Safari-Web%20Extension-orange" alt="Safari Extension">
+  <a href="https://github.com/RossNicholson/Adios/releases/latest"><img src="https://img.shields.io/github/v/release/RossNicholson/Adios" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/RossNicholson/Adios" alt="License"></a>
+  <img src="https://img.shields.io/badge/macOS-15%2B-blue" alt="macOS 15 or later">
+  <img src="https://img.shields.io/badge/Safari-extension-orange" alt="Safari extension">
 </p>
-
-An open-source, feature-rich ad blocker for Safari on macOS. Adios blocks ads, trackers, cookie consent banners, and social media widgets — with real-time statistics and powerful customisation.
 
 ---
 
-## Installation
+## What it does
 
-### Homebrew (recommended)
+- **Cuts down ads and trackers** on the sites you visit in Safari.
+- **Adds a toolbar button** so you can turn blocking on or off, see what’s going on, and adjust settings for the current site.
+- **Stays on your Mac** — no sign-up, no account, and no data sent to us.
+
+Adios is **for Mac only** (not iPhone or iPad). You need a recent version of **macOS** and **Safari**.
+
+---
+
+## Install Adios
+
+### Option A — Homebrew (if you use Terminal)
 
 ```bash
 brew tap rossnicholson/tap
 brew install --cask adios
 ```
 
-### Manual
+### Option B — Download the app
 
-Download the latest `.dmg` from the [Releases page](https://github.com/rossnicholson/adios/releases), open it, and drag **Adios.app** to your Applications folder.
-
-### After installing
-
-1. Open **Adios** from your Applications folder
-2. In Safari, go to **Settings → Extensions**
-3. Find **Adios** and enable it
-4. Grant permissions when prompted
+1. Open the **[Releases](https://github.com/RossNicholson/Adios/releases)** page on GitHub.  
+2. Download the latest **`.dmg`** file.  
+3. Open the DMG and drag **Adios** into your **Applications** folder.
 
 ---
 
-## Features
+## Turn it on in Safari
 
-### Core Blocking
-- **Ad Blocking** — Blocks display ads, video ads, and sponsored content
-- **Tracker Blocking** — Prevents analytics and tracking scripts
-- **Social Media** — Blocks social widgets and tracking pixels
-- **Malware Protection** — Blocks known malicious domains
-- **Cookie Consent Auto-Dismiss** — Automatically handles cookie banners
+1. **Open the Adios app once** from your Applications folder (this registers the Safari pieces).  
+2. In Safari, go to **Safari → Settings → Extensions** (or **Settings → Safari → Extensions** on newer macOS, depending on your system).  
+3. Find **Adios** in the list and **enable** it.  
+4. If you see a second item such as **Adios Content Blocker**, turn that **on** as well — it helps Safari apply extra blocking rules.  
+5. When Safari asks for permission to run Adios on websites, choose **Always Allow** (or the closest option) for the sites where you want blocking.
 
-### Privacy
-- **Anti-Fingerprinting** — Spoofs canvas, WebGL, and timing-based fingerprinting
-- **Zero Data Collection** — No personal data ever collected or transmitted
-- **First-Party Protection** — Never interferes with a page's own resources
-
-### Customisation
-- **Smart Presets** — Switch between Strict, Balanced, and Relaxed modes
-- **Custom Rules Editor** — Write your own blocking rules with pattern matching
-- **Site-Specific Rules** — Different blocking behaviour per website
-- **Site Exceptions** — Whitelist trusted sites with one click
-- **Rule Templates Library** — Pre-made rules you can apply instantly
-- **Scheduled Blocking** — Automatically adjust blocking by time of day
-
-### Analytics
-- **Real-Time Statistics** — Ads, trackers, and data saved as you browse
-- **Network Monitor** — Watch requests being blocked live
-- **Blocking History** — Full timeline of what was blocked and where
-- **Privacy Score** — Instant 0–100 privacy score per website
-- **Visual Charts** — Blocking trends and category breakdowns
-- **Export Stats** — Export your blocking data as JSON
+If something still looks off after an update, **fully quit Safari** (Safari → Quit Safari, or ⌘Q) and open it again so all parts of Adios reload.
 
 ---
 
-## Building from Source
+## Using Adios day to day
 
-### Requirements
-- macOS 15 (Sequoia) or later
-- Xcode 16.2 or later
-- An Apple Developer account (free tier works for local builds)
-
-### Steps
-
-```bash
-git clone https://github.com/rossnicholson/adios.git
-cd adios
-open Adios.xcodeproj
-```
-
-Select the **Adios (macOS)** scheme and press **⌘R** to build and run.
-
-> **Note:** You'll need to update the `DEVELOPMENT_TEAM` in Build Settings to your own Apple Developer team ID before building.
+- **Click the Adios icon** in Safari’s toolbar to open the popup: you’ll see switches for ads, trackers, and related options, plus stats and tools if you want to dig deeper.  
+- **“Allow ads on this site”** (or the equivalent control) adds an **exception** for the site you’re on — useful if a page looks broken or a video won’t play.  
+- **Per-site options** in the popup let you relax only certain kinds of blocking for that site without turning everything off everywhere.
 
 ---
 
-## Contributing
+## If a website looks wrong
 
-Contributions are welcome! Please:
+1. Use **Allow ads on this site** for that address, then **reload the page**.  
+2. Try turning off **only** trackers or **only** ads for that site in the popup, if those controls are available.  
+3. In the Adios popup, open the **Live log** section to see recent blocking activity for help when reporting a problem.  
+4. Still stuck? [Open an issue](https://github.com/RossNicholson/Adios/issues) and say which page and what you see (a blank page, a paywall message, a video error, etc.).
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Commit your changes
-4. Open a Pull Request
-
-Please open an issue first for significant changes so we can discuss the approach.
+**Mail Online (Daily Mail):** Adios uses gentler page cleanup there so the site can load reliably. You might notice **more ads** on that site than elsewhere — that’s expected so the page doesn’t go blank.
 
 ---
 
-## Release Process
+## Open source
 
-Releases are automated via GitHub Actions. To publish a new version:
-
-```bash
-git tag v1.2.0
-git push origin v1.2.0
-```
-
-The workflow will:
-1. Build the app in Release configuration
-2. Sign with a Developer ID certificate
-3. Create a `.dmg`
-4. Notarize with Apple
-5. Publish a GitHub Release
-6. Update the Homebrew Cask formula automatically
-
-See [`.github/workflows/release.yml`](.github/workflows/release.yml) for details.
-
-### Required GitHub Secrets
-
-| Secret | Description |
-|---|---|
-| `DEVELOPER_ID_CERTIFICATE_BASE64` | Base64-encoded `.p12` Developer ID certificate |
-| `DEVELOPER_ID_CERTIFICATE_PASSWORD` | Password for the `.p12` |
-| `KEYCHAIN_PASSWORD` | A password for the temporary CI keychain |
-| `APPLE_ID` | Your Apple ID email |
-| `APPLE_ID_PASSWORD` | An [app-specific password](https://support.apple.com/en-us/102654) for notarization |
-| `APPLE_TEAM_ID` | Your 10-character Apple Developer team ID |
-| `TAP_GITHUB_TOKEN` | A GitHub token with write access to your `homebrew-tap` repo |
-
----
-
-## Privacy
-
-Adios reads webpage content solely to identify and block ads. It:
-- Never collects personal information
-- Never stores your browsing history
-- Never transmits any data to any server
-- Is fully open source — you can verify this yourself
-
----
-
-## License
-
-[MIT License](LICENSE) — © 2024 Ross Nicholson
-
----
-
-## Support
-
-- **Issues:** [GitHub Issues](https://github.com/rossnicholson/adios/issues)
-- **Website:** [rossnicholson.dev](https://rossnicholson.dev)
+Adios is **open source** under the [MIT License](LICENSE). You’re welcome to inspect the code or suggest improvements on [GitHub](https://github.com/RossNicholson/Adios).
