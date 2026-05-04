@@ -133,7 +133,7 @@ jobs:
 
             ### Installation via Homebrew
             ```bash
-            brew tap rossnicholson/tap
+            brew tap RossNicholson/tap
             brew install --cask adios
             ```
 
@@ -151,7 +151,7 @@ jobs:
           VERSION="${{ steps.sha256.outputs.version }}"
           SHA256="${{ steps.sha256.outputs.sha256 }}"
 
-          git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/rossnicholson/homebrew-tap.git
+          git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/RossNicholson/homebrew-tap.git
           cd homebrew-tap
 
           cat > Casks/adios.rb << EOF
