@@ -98,13 +98,11 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
         }
 
         SFSafariApplication.showPreferencesForExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { error in
-            if let error = error {
-                os_log(.error, log: .viewController, "Error showing extension preferences: %{public}@", error.localizedDescription)
-                return
-            }
-
             DispatchQueue.main.async {
-                NSApp.terminate(self)
+                if error != nil {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Safari.app"))
+                }
+                NSApp.terminate(nil)
             }
         }
     }
