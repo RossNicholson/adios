@@ -4,7 +4,7 @@
 
     "name": "__MSG_extension_name__",
     "description": "__MSG_extension_description__",
-    "version": "0.2.10",
+    "version": "0.2.11",
 
     "icons": {
         "32": "images/icon-32.png",
