@@ -24,71 +24,36 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
         self.webView.navigationDelegate = self
         self.webView.configuration.userContentController.add(self, name: "controller")
 
+        // Inject show('mac') at document end — runs after deferred scripts, so 'show' is defined
+        let initScript = WKUserScript(
+            source: "if (typeof show === 'function') { show('mac'); }",
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
+        )
+        self.webView.configuration.userContentController.addUserScript(initScript)
+
         guard let htmlURL = Bundle.main.url(forResource: "Main", withExtension: "html") else {
             os_log(.error, log: .viewController, "Failed to load Main.html resource")
-            showErrorToUser("Unable to load app interface. Please reinstall the app.")
             return
         }
-        
+
         guard let resourceURL = Bundle.main.resourceURL else {
             os_log(.error, log: .viewController, "Failed to get resource URL")
-            showErrorToUser("Unable to access app resources. Please reinstall the app.")
             return
         }
-        
-        // Transparent background so the NSVisualEffectView vibrancy shows through
-        self.webView.setValue(false, forKey: "drawsBackground")
 
+        self.webView.setValue(false, forKey: "drawsBackground")
         self.webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceURL)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        let jsCode = "show('mac')"
-        webView.evaluateJavaScript(jsCode) { result, error in
-            if let error = error {
-                os_log(.error, log: .viewController, "Error evaluating JavaScript: %{public}@", error.localizedDescription)
-                self.showErrorToUser("Failed to initialize interface. Please restart the app.")
-            }
-        }
-
         SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { (state, error) in
-            if let error = error {
-                os_log(.error, log: .viewController, "Error getting extension state: %{public}@", error.localizedDescription)
-                DispatchQueue.main.async {
-                    self.showErrorToUser("Unable to check extension status. Please check Safari Settings manually.")
-                }
-                return
-            }
-            
-            guard let state = state else {
-                os_log(.error, log: .viewController, "Extension state is nil")
-                DispatchQueue.main.async {
-                    self.showErrorToUser("Unable to determine extension status. Please check Safari Settings manually.")
-                }
-                return
-            }
+            guard let state = state, error == nil else { return }
 
             DispatchQueue.main.async {
                 let isEnabled = state.isEnabled ? "true" : "false"
-                let jsCode = "show('mac', \(isEnabled), true)"
-                webView.evaluateJavaScript(jsCode) { result, error in
-                    if let error = error {
-                        os_log(.error, log: .viewController, "Error evaluating JavaScript: %{public}@", error.localizedDescription)
-                        self.showErrorToUser("Failed to update extension status display.")
-                    }
-                }
+                webView.evaluateJavaScript("show('mac', \(isEnabled), true)") { _, _ in }
             }
-        }
-    }
-    
-    private func showErrorToUser(_ message: String) {
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Error"
-            alert.informativeText = message
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
         }
     }
 
