@@ -4,7 +4,7 @@
 
     "name": "__MSG_extension_name__",
     "description": "__MSG_extension_description__",
-    "version": "0.1.0",
+    "version": "0.2.8",
 
     "icons": {
         "32": "images/icon-32.png",
@@ -31,12 +31,11 @@
     "action": {
         "default_popup": "popup.html",
         "default_icon": {
-            "16": "images/icon-16.png",
-            "19": "images/icon-19.png",
             "32": "images/icon-32.png",
-            "38": "images/icon-38.png",
             "48": "images/icon-48.png",
-            "72": "images/icon-72.png"
+            "64": "images/icon-64.png",
+            "96": "images/icon-96.png",
+            "128": "images/icon-128.png"
         }
     },
 
