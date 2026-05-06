@@ -46,18 +46,32 @@ class ViewController: NSViewController, WKNavigationDelegate {
                 } else {
                     webView.evaluateJavaScript("show('mac', undefined)") { _, _ in }
                 }
+
+                let showMenuBar = UserDefaults.standard.bool(forKey: "showMenuBarIcon")
+                webView.evaluateJavaScript("showMenuBar(\(showMenuBar))") { _, _ in }
             }
         }
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, preferences: WKWebpagePreferences, decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
-        guard navigationAction.request.url?.scheme == "adios" else {
+        guard let url = navigationAction.request.url, url.scheme == "adios" else {
             decisionHandler(.allow, preferences)
             return
         }
         decisionHandler(.cancel, preferences)
-        NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Safari.app"))
-        NSApp.terminate(nil)
+
+        switch url.host {
+        case "open-preferences":
+            NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Safari.app"))
+            NSApp.terminate(nil)
+        case "set-menu-bar":
+            let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let enabled = components?.queryItems?.first(where: { $0.name == "enabled" })?.value == "1"
+            UserDefaults.standard.set(enabled, forKey: "showMenuBarIcon")
+            NotificationCenter.default.post(name: Notification.Name("dev.rossnicholson.Adios.menuBarIconSettingChanged"), object: nil)
+        default:
+            break
+        }
     }
 
 }
