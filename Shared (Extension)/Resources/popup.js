@@ -160,11 +160,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const todayDataSavedElement = document.getElementById('todayDataSaved');
     const timeTabs = document.querySelectorAll('.time-tab');
     
-    // Dashboard elements
-    const topDomainElement = document.getElementById('topDomain');
-    const adsCountElement = document.getElementById('adsCount');
-    const trackersCountElement = document.getElementById('trackersCount');
-    
     // Load saved settings and stats
     const savedData = await browser.storage.local.get({
         totalBlocked: 0,
@@ -269,37 +264,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
     
-    // Calculate privacy score (0-100) - higher is better
-    function calculatePrivacyScore(currentDomain) {
-        if (!currentDomain) return 85; // Default score
-        
-        const siteBlocks = stats.siteStats[currentDomain] || 0;
-        const trackerBlocks = stats.trackersBlocked || 0;
-        const totalBlocks = stats.totalBlocked || 1;
-        
-        // Score based on blocking effectiveness
-        // More blocks = better protection = higher score
-        let score = 50; // Base score
-        
-        // Bonus for active blocking
-        if (totalBlocks > 0) {
-            score += Math.min(30, Math.log10(totalBlocks + 1) * 10);
-        }
-        
-        // Bonus for tracker blocking
-        const trackerRatio = trackerBlocks / totalBlocks;
-        if (trackerRatio > 0.3) {
-            score += 20; // Good tracker blocking
-        }
-        
-        // Site-specific bonus
-        if (siteBlocks > 0) {
-            score += Math.min(20, siteBlocks);
-        }
-        
-        return Math.max(0, Math.min(100, Math.round(score)));
-    }
-    
     // Get current tab info (with error handling)
     let currentDomain = '-';
     try {
@@ -366,47 +330,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             el.textContent = '-';
         });
     }
-    
-    // Update dashboard
-    function updateDashboard() {
-        try {
-            // Privacy score
-            const privacyScore = calculatePrivacyScore(currentDomain);
-            const privacyScoreElement = document.getElementById('privacyScore');
-            if (privacyScoreElement) {
-                privacyScoreElement.textContent = privacyScore;
-                privacyScoreElement.className = 'dashboard-value privacy-score';
-                if (privacyScore < 50) {
-                    privacyScoreElement.classList.add('low');
-                } else if (privacyScore < 80) {
-                    privacyScoreElement.classList.add('medium');
-                } else {
-                    privacyScoreElement.classList.add('high');
-                }
-            }
-            
-            // Top domain
-            const topDomain = Object.entries(stats.domainStats || {})
-                .sort((a, b) => b[1] - a[1])[0];
-            
-            safeUpdateElement('topDomain', (el) => {
-                el.textContent = topDomain ? topDomain[0] : '-';
-            });
-            
-            // Category breakdown
-            safeUpdateElement('adsCount', (el) => {
-                el.textContent = stats.adsBlocked.toLocaleString();
-            });
-            
-            safeUpdateElement('trackersCount', (el) => {
-                el.textContent = stats.trackersBlocked.toLocaleString();
-            });
-        } catch (error) {
-            console.error('Error updating dashboard:', error);
-        }
-    }
-    
-    updateDashboard();
     
     // Load and display exceptions list
     async function updateExceptionsList() {
@@ -868,52 +791,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     
-    // Handle view full report - show detailed stats in popup (with DOM check)
-    const viewFullReportBtn = document.getElementById('viewFullReport');
-    if (viewFullReportBtn) {
-        viewFullReportBtn.addEventListener('click', () => {
-        // Create a detailed report view
-        const reportWindow = window.open('', '_blank', 'width=600,height=800');
-        if (reportWindow) {
-            reportWindow.document.write(`
-                <html>
-                    <head>
-                        <title>Adios Privacy Report</title>
-                        <style>
-                            body { font-family: -apple-system, sans-serif; padding: 20px; }
-                            h1 { color: #34C759; }
-                            .stat { margin: 10px 0; padding: 10px; background: #f5f5f7; border-radius: 8px; }
-                            .category { margin: 5px 0; }
-                        </style>
-                    </head>
-                    <body>
-                        <h1>Adios Privacy Report</h1>
-                        <div class="stat">
-                            <h2>Total Statistics</h2>
-                            <p>Ads Blocked: ${stats.adsBlocked.toLocaleString()}</p>
-                            <p>Trackers Blocked: ${stats.trackersBlocked.toLocaleString()}</p>
-                            <p>Social Media Blocked: ${stats.socialBlocked.toLocaleString()}</p>
-                            <p>Malware Blocked: ${stats.malwareBlocked.toLocaleString()}</p>
-                            <p>Total Blocked: ${stats.totalBlocked.toLocaleString()}</p>
-                            <p>Data Saved: ${formatBytes(stats.dataSaved)}</p>
-                        </div>
-                        <div class="stat">
-                            <h2>Top Blocked Domains</h2>
-                                ${Object.entries(stats.domainStats || {})
-                                .sort((a, b) => b[1] - a[1])
-                                .slice(0, 10)
-                                .map(([domain, count]) => `<div class="category">${domain}: ${count.toLocaleString()}</div>`)
-                                .join('')}
-                        </div>
-                        <p><small>Generated: ${new Date().toLocaleString()}</small></p>
-                    </body>
-                </html>
-            `);
-            reportWindow.document.close();
-            }
-        });
-    }
-    
     // Handle support button (with DOM check)
     const supportBtn = document.getElementById('supportBtn');
     if (supportBtn) {
@@ -927,79 +804,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
-    
-    // Smart Filter Presets
-    const presetButtons = {
-        strict: document.getElementById('presetStrict'),
-        balanced: document.getElementById('presetBalanced'),
-        relaxed: document.getElementById('presetRelaxed')
-    };
-    const presetDescription = document.getElementById('presetDescription');
-    
-    const presets = {
-        strict: {
-            blockAds: true,
-            blockTrackers: true,
-            blockSocial: true,
-            blockMalware: true,
-            cookieConsent: true,
-            antiFingerprint: true,
-            description: 'Strict mode blocks all ads, trackers, social media, and malware. Maximum privacy protection.'
-        },
-        balanced: {
-            blockAds: true,
-            blockTrackers: true,
-            blockSocial: false,
-            blockMalware: true,
-            cookieConsent: true,
-            antiFingerprint: true,
-            description: 'Balanced mode blocks ads and trackers while allowing essential content.'
-        },
-        relaxed: {
-            blockAds: true,
-            blockTrackers: false,
-            blockSocial: false,
-            blockMalware: true,
-            cookieConsent: false,
-            antiFingerprint: false,
-            description: 'Relaxed mode blocks only ads and malware. Minimal interference with websites.'
-        }
-    };
-    
-    Object.entries(presetButtons).forEach(([presetName, button]) => {
-        if (button) {
-            button.addEventListener('click', async () => {
-                // Update active state
-                Object.values(presetButtons).forEach(btn => {
-                    if (btn) btn.classList.remove('active');
-                });
-                button.classList.add('active');
-                
-                // Apply preset
-                const preset = presets[presetName];
-                if (preset) {
-                    blockAdsToggle.checked = preset.blockAds;
-                    blockTrackersToggle.checked = preset.blockTrackers;
-                    blockSocialToggle.checked = preset.blockSocial;
-                    blockMalwareToggle.checked = preset.blockMalware;
-                    cookieConsentToggle.checked = preset.cookieConsent;
-                    antiFingerprintToggle.checked = preset.antiFingerprint;
-                    
-                    if (presetDescription) {
-                        presetDescription.textContent = preset.description;
-                    }
-                    
-                    // Update settings
-                    await browser.runtime.sendMessage({
-                        type: 'updateCategorySettings',
-                        ...preset
-                    });
-                    
-                    settings = { ...settings, ...preset };
-                }
-            });
-        }
-    });
     
     // Custom Rules Management
     let customRules = [];
@@ -1126,289 +930,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     await loadCustomRules();
-    
-    // Site-Specific Rules
-    let siteSpecificRules = [];
-    const siteRulesList = document.getElementById('siteRulesList');
-    const addSiteRuleBtn = document.getElementById('addSiteRule');
-    
-    async function loadSiteRules() {
-        const data = await browser.storage.local.get({ siteSpecificRules: [] });
-        siteSpecificRules = data.siteSpecificRules || [];
-        updateSiteRulesList();
-    }
-    
-    function updateSiteRulesList() {
-        if (!siteRulesList) return;
-        
-        try {
-            if (siteSpecificRules.length === 0) {
-                siteRulesList.innerHTML = '<p class="empty-message">No site-specific rules. Create rules that apply only to specific domains.</p>';
-                return;
-            }
-            
-            siteRulesList.innerHTML = '';
-            siteSpecificRules.forEach((rule, index) => {
-                const item = document.createElement('div');
-                item.className = 'site-rule-item';
-                
-                // Sanitize domain to prevent XSS
-                const sanitizedDomain = String(rule.domain || '').replace(/[<>]/g, '');
-                
-                item.innerHTML = `
-                    <div class="rule-info">
-                        <div class="rule-domain">${sanitizedDomain}</div>
-                        <div style="font-size: 11px; color: var(--text-secondary);">
-                            ${rule.blockAds ? 'Ads' : ''} ${rule.blockTrackers ? 'Trackers' : ''} ${rule.blockSocial ? 'Social' : ''}
-                        </div>
-                    </div>
-                    <div class="rule-actions">
-                        <button class="rule-delete" data-index="${index}">✕</button>
-                    </div>
-                `;
-                
-                const deleteBtn = item.querySelector('.rule-delete');
-                if (deleteBtn) {
-                    deleteBtn.addEventListener('click', async () => {
-                        await queueStateUpdate(async () => {
-                            siteSpecificRules.splice(index, 1);
-                            await browser.storage.local.set({ siteSpecificRules });
-                            await browser.runtime.sendMessage({ type: 'siteRulesUpdated', rules: siteSpecificRules });
-                            updateSiteRulesList();
-                        });
-                    });
-                }
-                
-                siteRulesList.appendChild(item);
-            });
-        } catch (error) {
-            console.error('Error updating site rules list:', error);
-        }
-    }
-    
-    if (addSiteRuleBtn) {
-        addSiteRuleBtn.addEventListener('click', async () => {
-            const domain = currentDomain !== '-' ? currentDomain : prompt('Enter domain (e.g., example.com):');
-            if (domain && domain !== '-') {
-                // Validate domain
-                if (!validateDomain(domain)) {
-                    alert('Invalid domain format. Please enter a valid domain (e.g., example.com)');
-                    return;
-                }
-                
-                const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase();
-                
-                // Check if rule already exists
-                if (siteSpecificRules.find(r => r.domain === cleanDomain)) {
-                    alert('A rule for this domain already exists.');
-                    return;
-                }
-                
-                await queueStateUpdate(async () => {
-                    const newRule = {
-                        domain: cleanDomain,
-                        blockAds: true,
-                        blockTrackers: true,
-                        blockSocial: false,
-                        blockMalware: true
-                    };
-                    
-                    siteSpecificRules.push(newRule);
-                    await browser.storage.local.set({ siteSpecificRules });
-                    await browser.runtime.sendMessage({ type: 'siteRulesUpdated', rules: siteSpecificRules });
-                    updateSiteRulesList();
-                });
-            }
-        });
-    }
-    
-    await loadSiteRules();
-    
-    // Scheduled Blocking
-    let scheduleEnabled = false;
-    let scheduleConfig = {
-        enabled: false,
-        startTime: '09:00',
-        endTime: '17:00',
-        days: ['mon', 'tue', 'wed', 'thu', 'fri'],
-        mode: 'balanced'
-    };
-    
-    const scheduleEnabledToggle = document.getElementById('scheduleEnabled');
-    const scheduleContent = document.getElementById('scheduleContent');
-    const scheduleStart = document.getElementById('scheduleStart');
-    const scheduleEnd = document.getElementById('scheduleEnd');
-    const scheduleMode = document.getElementById('scheduleMode');
-    const saveScheduleBtn = document.getElementById('saveSchedule');
-    const dayButtons = document.querySelectorAll('.day-btn');
-    
-    async function loadSchedule() {
-        const data = await browser.storage.local.get({ scheduleConfig });
-        scheduleConfig = { ...scheduleConfig, ...data.scheduleConfig };
-        
-        if (scheduleEnabledToggle) {
-            scheduleEnabledToggle.checked = scheduleConfig.enabled;
-            scheduleEnabled = scheduleConfig.enabled;
-        }
-        if (scheduleContent) {
-            scheduleContent.style.display = scheduleConfig.enabled ? 'block' : 'none';
-        }
-        if (scheduleStart) scheduleStart.value = scheduleConfig.startTime;
-        if (scheduleEnd) scheduleEnd.value = scheduleConfig.endTime;
-        if (scheduleMode) scheduleMode.value = scheduleConfig.mode;
-        
-        // Update day buttons
-        dayButtons.forEach(btn => {
-            const day = btn.dataset.day;
-            if (scheduleConfig.days.includes(day)) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-    }
-    
-    if (scheduleEnabledToggle) {
-        scheduleEnabledToggle.addEventListener('change', (e) => {
-            scheduleEnabled = e.target.checked;
-            scheduleConfig.enabled = scheduleEnabled;
-            if (scheduleContent) {
-                scheduleContent.style.display = scheduleEnabled ? 'block' : 'none';
-            }
-            browser.storage.local.set({ scheduleConfig });
-            browser.runtime.sendMessage({ type: 'scheduleUpdated', schedule: scheduleConfig });
-        });
-    }
-    
-    dayButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            btn.classList.toggle('active');
-            const day = btn.dataset.day;
-            if (btn.classList.contains('active')) {
-                if (!scheduleConfig.days.includes(day)) {
-                    scheduleConfig.days.push(day);
-                }
-            } else {
-                scheduleConfig.days = scheduleConfig.days.filter(d => d !== day);
-            }
-        });
-    });
-    
-    if (saveScheduleBtn) {
-        saveScheduleBtn.addEventListener('click', async () => {
-            scheduleConfig.startTime = scheduleStart?.value || '09:00';
-            scheduleConfig.endTime = scheduleEnd?.value || '17:00';
-            scheduleConfig.mode = scheduleMode?.value || 'balanced';
-            scheduleConfig.enabled = scheduleEnabled;
-            
-            await browser.storage.local.set({ scheduleConfig });
-            await browser.runtime.sendMessage({ type: 'scheduleUpdated', schedule: scheduleConfig });
-            alert('Schedule saved! Blocking will automatically adjust based on your schedule.');
-        });
-    }
-    
-    await loadSchedule();
-    
-    // Check if schedule should be active
-    function checkSchedule() {
-        if (!scheduleConfig.enabled) return false;
-        
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const currentTime = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
-        
-        const [startHour, startMin] = scheduleConfig.startTime.split(':').map(Number);
-        const [endHour, endMin] = scheduleConfig.endTime.split(':').map(Number);
-        const startMinutes = startHour * 60 + startMin;
-        const endMinutes = endHour * 60 + endMin;
-        const currentMinutes = currentHour * 60 + currentMinute;
-        
-        const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-        const currentDay = dayNames[now.getDay()];
-        
-        const isInTimeRange = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
-        const isScheduledDay = scheduleConfig.days.includes(currentDay);
-        
-        return isInTimeRange && isScheduledDay;
-    }
-    
-    // Apply schedule if active
-    setInterval(() => {
-        if (checkSchedule()) {
-            const schedulePreset = presets[scheduleConfig.mode];
-            if (schedulePreset) {
-                // Apply scheduled preset
-                browser.runtime.sendMessage({
-                    type: 'updateCategorySettings',
-                    ...schedulePreset
-                });
-            }
-        }
-    }, 60000); // Check every minute
-    
-    // Blocking History (data only — UI removed)
-    let blockingHistory = [];
-    const historySummary = document.getElementById('historySummary');
-    const viewHistoryBtn = document.getElementById('viewHistory');
-    
-    async function loadBlockingHistory() {
-        const data = await browser.storage.local.get({ blockingHistory: [] });
-        blockingHistory = data.blockingHistory || [];
-        updateHistorySummary();
-    }
-    
-    function updateHistorySummary() {
-        if (!historySummary) return;
-        
-        if (blockingHistory.length === 0) {
-            historySummary.innerHTML = '<p class="empty-message">No history yet</p>';
-            return;
-        }
-        
-        const recent = blockingHistory.slice(-5).reverse();
-        historySummary.innerHTML = recent.map(item => `
-            <div class="history-item">
-                <div>${item.domain}</div>
-                <div class="history-time">${new Date(item.timestamp).toLocaleTimeString()}</div>
-            </div>
-        `).join('');
-    }
-    
-    if (viewHistoryBtn) {
-        viewHistoryBtn.addEventListener('click', () => {
-            const historyWindow = window.open('', '_blank', 'width=600,height=800');
-            if (historyWindow) {
-                historyWindow.document.write(`
-                    <html>
-                        <head>
-                            <title>Adios Blocking History</title>
-                            <style>
-                                body { font-family: -apple-system, sans-serif; padding: 20px; }
-                                h1 { color: #34C759; }
-                                .history-item { padding: 10px; border-bottom: 1px solid #e0e0e0; }
-                                .history-time { color: #666; font-size: 12px; }
-                            </style>
-                        </head>
-                        <body>
-                            <h1>Blocking History</h1>
-                            ${[...blockingHistory].reverse().map(item => `
-                                <div class="history-item">
-                                    <div><strong>${item.domain}</strong></div>
-                                    <div>Blocked: ${item.count} items</div>
-                                    <div class="history-time">${new Date(item.timestamp).toLocaleString()}</div>
-                                </div>
-                            `).join('')}
-                        </body>
-                    </html>
-                `);
-                historyWindow.document.close();
-            }
-        });
-    }
-    
-    await loadBlockingHistory();
-    
+
     // Filter Lists Management
     const filterEasyList = document.getElementById('filterEasyList');
     const filterPrivacyList = document.getElementById('filterPrivacyList');
@@ -1488,55 +1010,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     
-    // Performance Metrics
-    async function loadPerformanceData() {
-        const perfData = await browser.storage.local.get({ pageLoadTimes: [] });
-        const loadTimes = perfData.pageLoadTimes || [];
-        
-        if (loadTimes.length > 0) {
-            // Calculate average load time from recent measurements
-            const recentTimes = loadTimes.slice(-20).map(t => t.time);
-            performanceData.pageLoadTimes = recentTimes;
-            performanceData.totalPages = loadTimes.length;
-        }
-        
-        updatePerformanceMetrics();
-    }
-    
-    await loadPerformanceData();
-    
-    // Charts
-    const toggleChartsBtn = document.getElementById('toggleCharts');
-    const chartsContainer = document.getElementById('chartsContainer');
-    let chartsVisible = false;
-    
-    if (toggleChartsBtn && chartsContainer) {
-        toggleChartsBtn.addEventListener('click', () => {
-            chartsVisible = !chartsVisible;
-            chartsContainer.style.display = chartsVisible ? 'block' : 'none';
-            toggleChartsBtn.textContent = chartsVisible ? 'Hide Charts' : 'Show Charts';
-            
-            if (chartsVisible) {
-                // Draw charts
-                setTimeout(() => {
-                    // Trend chart (last 7 days)
-                    const trendData = Object.values(stats.dailyStats)
-                        .slice(-7)
-                        .map(day => day.blocked || 0);
-                    drawTrendChart('trendChart', trendData);
-                    
-                    // Category chart
-                    drawCategoryChart('categoryChart', {
-                        Ads: stats.adsBlocked,
-                        Trackers: stats.trackersBlocked,
-                        Social: stats.socialBlocked,
-                        Malware: stats.malwareBlocked
-                    });
-                }, 100);
-            }
-        });
-    }
-    
     // Reset Stats Button
     const resetStatsBtn = document.getElementById('resetStats');
     if (resetStatsBtn) {
@@ -1553,9 +1026,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     domainStats: {},
                     dailyStats: {},
                     weeklyStats: {},
-                    monthlyStats: {},
-                    blockingHistory: [],
-                    pageLoadTimes: []
+                    monthlyStats: {}
                 };
                 
                 // Save to storage
@@ -1586,21 +1057,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 safeUpdateElement('dataSaved', (el) => {
                     el.textContent = '0 KB';
                 });
-                updateDashboard();
                 updateTimeStats(document.querySelector('.time-tab.active')?.dataset.period || 'today');
-                updatePerformanceMetrics();
-                
-                // Reset charts if visible
-                if (chartsVisible) {
-                    drawTrendChart('trendChart', []);
-                    drawCategoryChart('categoryChart', {
-                        Ads: 0,
-                        Trackers: 0,
-                        Social: 0,
-                        Malware: 0
-                    });
-                }
-                
+
             }
         });
     }
@@ -1634,24 +1092,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     el.textContent = formatBytes(stats.dataSaved);
                 });
                 
-                updateDashboard();
                 updateTimeStats(document.querySelector('.time-tab.active')?.dataset.period || 'today');
-                updatePerformanceMetrics();
-                
-                // Update charts if visible
-                if (chartsVisible) {
-                    const trendData = Object.values(stats.dailyStats)
-                        .slice(-7)
-                        .map(day => day.blocked || 0);
-                    drawTrendChart('trendChart', trendData);
-                    drawCategoryChart('categoryChart', {
-                        Ads: stats.adsBlocked,
-                        Trackers: stats.trackersBlocked,
-                        Social: stats.socialBlocked,
-                        Malware: stats.malwareBlocked
-                    });
-                }
-                
+
             }
         } catch (error) {
             console.error('Error refreshing stats:', error);
@@ -1688,143 +1130,4 @@ function formatBytes(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-// Performance Metrics
-let performanceData = {
-    pageLoadTimes: [],
-    baselineLoadTime: 3000, // 3 seconds baseline
-    totalPages: 0
-};
-
-async function updatePerformanceMetrics() {
-    try {
-        const loadSpeedElement = document.getElementById('loadSpeed');
-        const batterySavedElement = document.getElementById('batterySaved');
-        if (!loadSpeedElement || !batterySavedElement) return;
-
-        // Calculate average page load improvement
-        const avgLoadTime = performanceData.pageLoadTimes.length > 0
-            ? performanceData.pageLoadTimes.reduce((a, b) => a + b, 0) / performanceData.pageLoadTimes.length
-            : performanceData.baselineLoadTime;
-        const improvement = ((performanceData.baselineLoadTime - avgLoadTime) / performanceData.baselineLoadTime) * 100;
-        loadSpeedElement.textContent = improvement > 0 ? `+${Math.round(improvement)}%` : '0%';
-
-        // Read totalBlocked from storage directly to avoid scope dependency
-        const { totalBlocked = 0 } = await browser.storage.local.get({ totalBlocked: 0 });
-        const estimatedBatterySaved = Math.min(15, Math.round((totalBlocked / 100) * 0.5));
-        batterySavedElement.textContent = `${estimatedBatterySaved}%`;
-    } catch (error) {
-        console.error('Error updating performance metrics:', error);
-    }
-}
-
-// Chart Drawing Functions
-function drawTrendChart(canvasId, data) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, width, height);
-    
-    if (!data || data.length === 0) {
-        ctx.fillStyle = 'var(--text-secondary)';
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('No data yet', width / 2, height / 2);
-        return;
-    }
-    
-    // Draw simple line chart
-    ctx.strokeStyle = 'var(--primary-color)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    
-    const maxValue = Math.max(...data);
-    const padding = 20;
-    const chartWidth = width - padding * 2;
-    const chartHeight = height - padding * 2;
-    // Guard: single point or all-zero data
-    const safeMax = maxValue > 0 ? maxValue : 1;
-    const xOf = (index) => data.length > 1
-        ? padding + (index / (data.length - 1)) * chartWidth
-        : padding + chartWidth / 2;
-    const yOf = (value) => height - padding - (value / safeMax) * chartHeight;
-
-    data.forEach((value, index) => {
-        const x = xOf(index);
-        const y = yOf(value);
-        if (index === 0) {
-            ctx.moveTo(x, y);
-        } else {
-            ctx.lineTo(x, y);
-        }
-    });
-
-    ctx.stroke();
-
-    // Draw points
-    ctx.fillStyle = '#30D158';
-    data.forEach((value, index) => {
-        const x = xOf(index);
-        const y = yOf(value);
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fill();
-    });
-}
-
-function drawCategoryChart(canvasId, categories) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    ctx.clearRect(0, 0, width, height);
-    
-    const total = Object.values(categories).reduce((a, b) => a + b, 0);
-    if (total === 0) {
-        ctx.fillStyle = 'var(--text-secondary)';
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('No data yet', width / 2, height / 2);
-        return;
-    }
-    
-    // Draw pie chart
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = Math.min(width, height) / 2 - 20;
-    
-    let currentAngle = -Math.PI / 2;
-    const colors = ['#34C759', '#FF9500', '#007AFF', '#FF3B30'];
-    let colorIndex = 0;
-    
-    Object.entries(categories).forEach(([label, value]) => {
-        const sliceAngle = (value / total) * Math.PI * 2;
-        
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
-        ctx.closePath();
-        ctx.fillStyle = colors[colorIndex % colors.length];
-        ctx.fill();
-        
-        // Label
-        const labelAngle = currentAngle + sliceAngle / 2;
-        const labelX = centerX + Math.cos(labelAngle) * (radius * 0.7);
-        const labelY = centerY + Math.sin(labelAngle) * (radius * 0.7);
-        ctx.fillStyle = 'white';
-        ctx.font = '10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(label.substring(0, 4), labelX, labelY);
-        
-        currentAngle += sliceAngle;
-        colorIndex++;
-    });
-}
 
