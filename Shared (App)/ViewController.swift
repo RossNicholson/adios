@@ -38,13 +38,18 @@ class ViewController: NSViewController, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { (state, error) in
-            DispatchQueue.main.async {
-                if let state = state, error == nil {
-                    let isEnabled = state.isEnabled ? "true" : "false"
-                    webView.evaluateJavaScript("show('mac', \(isEnabled))") { _, _ in }
-                } else {
-                    webView.evaluateJavaScript("show('mac', undefined)") { _, _ in }
+        // Delay the state check slightly — on a fresh install Safari needs a moment
+        // to register the extension before getStateOfSafariExtension can succeed.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { (state, error) in
+                DispatchQueue.main.async {
+                    if let state = state, error == nil {
+                        let isEnabled = state.isEnabled ? "true" : "false"
+                        webView.evaluateJavaScript("show('mac', \(isEnabled))") { _, _ in }
+                    } else {
+                        // Extension not registered yet — show setup screen silently.
+                        webView.evaluateJavaScript("show('mac', false)") { _, _ in }
+                    }
                 }
             }
         }
@@ -57,7 +62,10 @@ class ViewController: NSViewController, WKNavigationDelegate {
         }
         decisionHandler(.cancel, preferences)
         NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Safari.app"))
-        NSApp.terminate(nil)
+        // Delay quit so Safari has time to come to the foreground.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            NSApp.terminate(nil)
+        }
     }
 
 }
