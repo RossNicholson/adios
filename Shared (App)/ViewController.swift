@@ -48,11 +48,13 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { (state, error) in
-            guard let state = state, error == nil else { return }
-
             DispatchQueue.main.async {
-                let isEnabled = state.isEnabled ? "true" : "false"
-                webView.evaluateJavaScript("show('mac', \(isEnabled), true)") { _, _ in }
+                if let state = state, error == nil {
+                    let isEnabled = state.isEnabled ? "true" : "false"
+                    webView.evaluateJavaScript("show('mac', \(isEnabled), true)") { _, _ in }
+                } else {
+                    webView.evaluateJavaScript("show('mac', undefined, true)") { _, _ in }
+                }
             }
         }
     }
