@@ -17,8 +17,6 @@ function show(platform, enabled) {
     }
 }
 
-function openPreferences() {
-    webkit.messageHandlers.controller.postMessage("open-preferences");
-}
-
-document.querySelector("button.open-preferences").addEventListener("click", openPreferences);
+document.querySelector("button.open-preferences").addEventListener("click", function() {
+    window.location.href = "adios://open-preferences";
+});

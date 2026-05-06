@@ -14,7 +14,7 @@ extension OSLog {
     static let viewController = OSLog(subsystem: "dev.rossnicholson.Adios", category: "ViewController")
 }
 
-class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHandler {
+class ViewController: NSViewController, WKNavigationDelegate {
 
     @IBOutlet var webView: WKWebView!
 
@@ -22,15 +22,6 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
         super.viewDidLoad()
 
         self.webView.navigationDelegate = self
-        self.webView.configuration.userContentController.add(self, name: "controller")
-
-        // Inject show('mac') at document end — runs after deferred scripts, so 'show' is defined
-        let initScript = WKUserScript(
-            source: "if (typeof show === 'function') { show('mac', undefined); }",
-            injectionTime: .atDocumentEnd,
-            forMainFrameOnly: true
-        )
-        self.webView.configuration.userContentController.addUserScript(initScript)
 
         guard let htmlURL = Bundle.main.url(forResource: "Main", withExtension: "html") else {
             os_log(.error, log: .viewController, "Failed to load Main.html resource")
@@ -59,14 +50,12 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
         }
     }
 
-    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let messageBody = message.body as? String, messageBody == "open-preferences" else {
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard navigationAction.request.url?.scheme == "adios" else {
+            decisionHandler(.allow)
             return
         }
-
-        // Open Safari unconditionally, then try the deep-link to Extensions settings.
-        // showPreferencesForExtension is deprecated on macOS 14+ and may fail silently,
-        // so we guarantee Safari opens regardless.
+        decisionHandler(.cancel)
         NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Safari.app"))
         SFSafariApplication.showPreferencesForExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { _ in
             DispatchQueue.main.async {
