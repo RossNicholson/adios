@@ -797,7 +797,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         supportBtn.addEventListener('click', () => {
             try {
                 browser.tabs.create({
-                    url: 'https://rossnicholson.dev'
+                    url: 'https://rossnicholson.dev/support'
                 });
             } catch (error) {
                 console.error('Error opening support page:', error);
