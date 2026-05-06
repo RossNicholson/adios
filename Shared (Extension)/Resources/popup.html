@@ -95,42 +95,6 @@
             </div>
         </div>
 
-        <!-- Debug/Troubleshooting Section -->
-        <div class="debug-section" id="debugSection" style="display: block;">
-            <div class="debug-header">
-                <h3>🔍 Troubleshooting</h3>
-                <button id="toggleDebug" class="debug-toggle">Show Details</button>
-            </div>
-            <div class="debug-content" id="debugContent" style="display: none;">
-                <div class="debug-item">
-                    <strong>Extension Status:</strong>
-                    <span id="extensionStatus">Checking...</span>
-                    <p class="debug-hint">Shows if the extension is working properly</p>
-                </div>
-                <div class="debug-item">
-                    <strong>Blocking Enabled:</strong>
-                    <span id="blockingEnabled">-</span>
-                    <p class="debug-hint">Shows if ad blocking is currently active</p>
-                </div>
-                <div class="debug-item">
-                    <strong>Quick Test:</strong>
-                    <button id="testBlocking" class="test-btn">Test if Blocking Works</button>
-                    <div id="testResult" class="test-result"></div>
-                    <p class="debug-hint">Click this button to test if the extension can block Google ads</p>
-                </div>
-                <div class="debug-item">
-                    <strong>Need More Help?</strong>
-                    <p class="debug-hint">If ads are still showing:</p>
-                    <ol class="debug-steps">
-                        <li>Make sure "Ad Blocking" toggle at the top is ON (green)</li>
-                        <li>Make sure "Ads" is checked in Blocking Categories</li>
-                        <li>Check if the website is in your Exceptions list</li>
-                        <li>Try refreshing the webpage</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
-
         <div class="performance-metrics">
             <h3>Performance Impact</h3>
             <div class="metric-grid">
@@ -381,38 +345,6 @@
             </div>
         </div>
 
-        <div class="network-monitor">
-            <div class="monitor-header">
-                <h3>Network Monitor</h3>
-                <button id="toggleMonitor" class="toggle-button">Start</button>
-            </div>
-            <div class="monitor-content" id="monitorContent" style="display: none;">
-                <div class="monitor-stats">
-                    <div class="monitor-stat">
-                        <span class="monitor-label">Requests Blocked:</span>
-                        <span class="monitor-value" id="monitorBlocked">0</span>
-                    </div>
-                    <div class="monitor-stat">
-                        <span class="monitor-label">Active Connections:</span>
-                        <span class="monitor-value" id="monitorActive">0</span>
-                    </div>
-                </div>
-                <div class="recent-blocks" id="recentBlocks">
-                    <p class="empty-message">No recent blocks</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="blocking-history">
-            <div class="history-header">
-                <h3>Blocking History</h3>
-                <button id="viewHistory" class="link-button">View All →</button>
-            </div>
-            <div class="history-summary" id="historySummary">
-                <p class="empty-message">No history yet</p>
-            </div>
-        </div>
-
         <div class="filter-lists">
             <div class="filter-lists-header">
                 <h3>Filter Lists</h3>
@@ -448,35 +380,6 @@
             <div class="filter-list-status">
                 <span id="easyListStatus">Checking...</span>
                 <button id="refreshEasyList" class="filter-btn">↻ Update Now</button>
-            </div>
-        </div>
-
-        <!-- Live Log Viewer -->
-        <div class="live-logs-section">
-            <div class="live-logs-header">
-                <h3>🔬 Live Logs</h3>
-                <div class="live-logs-controls">
-                    <label class="switch-small">
-                        <input type="checkbox" id="liveLogToggle">
-                        <span class="slider round"></span>
-                    </label>
-                    <span class="live-log-label" id="liveLogLabel">Off</span>
-                    <button id="clearLogs" class="filter-btn">Clear</button>
-                    <button id="copyLogs" class="filter-btn">Copy</button>
-                </div>
-            </div>
-            <div id="liveLogsPanel" style="display:none;">
-                <div class="live-log-filter-row">
-                    <select id="logLevelFilter" class="log-level-select">
-                        <option value="">All</option>
-                        <option value="BLOCK">Blocked only</option>
-                        <option value="ANTI">Anti-adblock</option>
-                        <option value="PAGE">Page events</option>
-                    </select>
-                    <input type="text" id="logDomainFilter" placeholder="Filter by domain..." class="log-domain-input">
-                </div>
-                <div id="liveLogEntries" class="live-log-entries"></div>
-                <p class="live-log-hint">Reload the page you want to inspect, then watch logs appear here.</p>
             </div>
         </div>
 
