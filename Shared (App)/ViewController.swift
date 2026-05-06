@@ -26,7 +26,7 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
 
         // Inject show('mac') at document end — runs after deferred scripts, so 'show' is defined
         let initScript = WKUserScript(
-            source: "if (typeof show === 'function') { show('mac'); }",
+            source: "if (typeof show === 'function') { show('mac', undefined); }",
             injectionTime: .atDocumentEnd,
             forMainFrameOnly: true
         )
@@ -51,9 +51,9 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
             DispatchQueue.main.async {
                 if let state = state, error == nil {
                     let isEnabled = state.isEnabled ? "true" : "false"
-                    webView.evaluateJavaScript("show('mac', \(isEnabled), true)") { _, _ in }
+                    webView.evaluateJavaScript("show('mac', \(isEnabled))") { _, _ in }
                 } else {
-                    webView.evaluateJavaScript("show('mac', undefined, true)") { _, _ in }
+                    webView.evaluateJavaScript("show('mac', undefined)") { _, _ in }
                 }
             }
         }
@@ -64,11 +64,12 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
             return
         }
 
-        SFSafariApplication.showPreferencesForExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { error in
+        // Open Safari unconditionally, then try the deep-link to Extensions settings.
+        // showPreferencesForExtension is deprecated on macOS 14+ and may fail silently,
+        // so we guarantee Safari opens regardless.
+        NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Safari.app"))
+        SFSafariApplication.showPreferencesForExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { _ in
             DispatchQueue.main.async {
-                if error != nil {
-                    NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Safari.app"))
-                }
                 NSApp.terminate(nil)
             }
         }

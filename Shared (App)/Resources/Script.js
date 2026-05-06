@@ -1,22 +1,15 @@
-function show(platform, enabled, useSettingsInsteadOfPreferences) {
+function show(platform, enabled) {
     document.body.classList.add(`platform-${platform}`);
-
-    if (useSettingsInsteadOfPreferences) {
-        document.getElementsByClassName('platform-mac state-on')[0].innerText = "Both Adios extensions are active.";
-        document.getElementsByClassName('platform-mac state-off')[0].innerText = "Adios is disabled. Enable both extensions in Safari Settings → Extensions.";
-        document.getElementsByClassName('open-preferences')[0].innerText = "Quit and Open Safari Settings…";
-    }
 
     if (typeof enabled === "boolean") {
         document.body.classList.toggle(`state-on`, enabled);
         document.body.classList.toggle(`state-off`, !enabled);
 
         if (enabled) {
-            document.querySelector('.setup-card-title').innerText = "Extensions are active";
-            document.querySelector('.setup-steps').innerHTML =
-                '<li>Adios is blocking ads in Safari.</li>' +
-                '<li>Adios Content Blocker is also active.</li>' +
-                '<li>Manage both any time in Safari Settings → Extensions.</li>';
+            document.querySelector('.setup-card').innerHTML =
+                '<p class="setup-card-title">You\'re all set</p>' +
+                '<p class="setup-active-text">Adios is active and blocking ads in Safari. ' +
+                'You can manage it any time in Safari → Settings → Extensions.</p>';
         }
     } else {
         document.body.classList.remove(`state-on`);
