@@ -66,13 +66,13 @@
 
 html {
     width: 400px;
-    height: 640px;
+    height: 560px;
     overflow: hidden;
 }
 
 body {
     width: 400px;
-    height: 640px;
+    height: 560px;
     margin: 0;
     padding: 0;
     background: var(--body-bg);
