@@ -64,7 +64,13 @@
 /* ── Reset ─────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 
-html, body {
+html {
+    width: 400px;
+    height: 640px;
+    overflow: hidden;
+}
+
+body {
     width: 400px;
     height: 640px;
     margin: 0;
@@ -76,18 +82,16 @@ html, body {
     font-family: -apple-system, "SF Pro Text", BlinkMacSystemFont, sans-serif;
     font-size: 13px;
     -webkit-font-smoothing: antialiased;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 /* ── Container ──────────────────────────────────────────── */
 .container {
-    height: 100%;
     padding: 12px 12px 20px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    overflow-x: hidden;
-    overflow-y: auto;
 }
 
 /* ── Glass card ─────────────────────────────────────────── */
