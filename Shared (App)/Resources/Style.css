@@ -220,7 +220,10 @@ body.state-off :is(.state-on, .state-unknown) { display: none; }
 }
 
 /* CTA Button */
-button.open-preferences {
+a.open-preferences, button.open-preferences {
+    display: block;
+    text-decoration: none;
+    text-align: center;
     width: 100%;
     padding: 12px 20px;
     background: var(--btn-bg);
@@ -236,10 +239,10 @@ button.open-preferences {
     transition: opacity 0.15s ease, transform 0.1s ease;
 }
 
-button.open-preferences:hover {
+a.open-preferences:hover, button.open-preferences:hover {
     opacity: 0.85;
 }
 
-button.open-preferences:active {
+a.open-preferences:active, button.open-preferences:active {
     transform: scale(0.98);
 }

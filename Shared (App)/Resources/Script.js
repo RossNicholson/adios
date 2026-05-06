@@ -17,6 +17,3 @@ function show(platform, enabled) {
     }
 }
 
-document.querySelector("button.open-preferences").addEventListener("click", function() {
-    window.location.href = "adios://open-preferences";
-});

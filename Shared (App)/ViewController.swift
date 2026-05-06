@@ -50,18 +50,14 @@ class ViewController: NSViewController, WKNavigationDelegate {
         }
     }
 
-    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, preferences: WKWebpagePreferences, decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
         guard navigationAction.request.url?.scheme == "adios" else {
-            decisionHandler(.allow)
+            decisionHandler(.allow, preferences)
             return
         }
-        decisionHandler(.cancel)
+        decisionHandler(.cancel, preferences)
         NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Safari.app"))
-        SFSafariApplication.showPreferencesForExtension(withIdentifier: "dev.rossnicholson.Adios.Extension") { _ in
-            DispatchQueue.main.async {
-                NSApp.terminate(nil)
-            }
-        }
+        NSApp.terminate(nil)
     }
 
 }
